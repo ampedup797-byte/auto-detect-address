@@ -14,62 +14,63 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-async function getAddressFromLocation(lat, lng) {
-  const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
-  );
-  const data = await response.json();
-
-  if (data.status === "OK") {
-    const result = data.results[0];
-    let street = "";
-    let city = "";
-    let state = "";
-    let postalCode = "";
-
-    result.address_components.forEach(component => {
-      if (component.types.includes("route")) {
-        street += component.long_name + " ";
-      }
-      if (component.types.includes("sublocality") || component.types.includes("neighborhood")) {
-        street += component.long_name + " ";
-      }
-      if (component.types.includes("locality")) {
-        city = component.long_name;
-      }
-      if (component.types.includes("administrative_area_level_1")) {
-        state = component.long_name;
-      }
-      if (component.types.includes("postal_code")) {
-        postalCode = component.long_name;
-      }
-    });
-
-    document.querySelector("input[name='Street Address']").value = street.trim();
-    document.querySelector("input[name='City']").value = city;
-    document.querySelector("select[name='State']").value = state;
-    document.querySelector("input[name='Pincode']").value = postalCode;
-  } else {
-    alert("Could not detect address automatically. Please enter manually.");
-  }
-}
-
-function detectAddress() {
+async function autoDetectAddress() {
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        getAddressFromLocation(position.coords.latitude, position.coords.longitude);
-      },
-      error => {
-        alert("Please allow location access to auto-detect your address.");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- Replace with your actual Google Maps API key
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.results && data.results[0]) {
+          const address = data.results[0].address_components;
+
+          // Helper to get component by type
+          function get(type) {
+            const comp = address.find(c => c.types.includes(type));
+            return comp ? comp.long_name : '';
+          }
+
+          // --- Fill the address fields ---
+          // ✅ Street address (fixed version)
+          const street = [
+            get('street_number'),
+            get('route'),
+            get('sublocality'),
+            get('neighborhood')
+          ].filter(Boolean).join(' ');
+
+          const city = get('locality') || get('administrative_area_level_2');
+          const state = get('administrative_area_level_1');
+          const postalCode = get('postal_code');
+
+          // Fill fields in the form
+          const streetInput = document.querySelector('input[placeholder="House number, street name"]');
+          const cityInput = document.querySelector('input[placeholder="City"]');
+          const stateSelect = document.querySelector('select');
+          const pinInput = document.querySelector('input[placeholder="123456"]');
+
+          if (streetInput) streetInput.value = street;
+          if (cityInput) cityInput.value = city;
+          if (stateSelect) stateSelect.value = state;
+          if (pinInput) pinInput.value = postalCode;
+        }
+      } catch (e) {
+        console.error("Error fetching address:", e);
       }
-    );
+    }, (err) => {
+      console.error("Geolocation error:", err);
+      alert("Unable to detect location. Please enable location services.");
+    });
   } else {
-    alert("Geolocation not supported by your browser.");
+    alert("Geolocation is not supported in this browser.");
   }
 }
 
-window.onload = detectAddress;
+window.onload = autoDetectAddress;
 </script>  </body>
 </html>
