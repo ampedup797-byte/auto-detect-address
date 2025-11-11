@@ -73,28 +73,44 @@ async function autoDetectAddress() {
 
 window.onload = autoDetectAddress;
 </script> 
-    <script>
-window.onload = function () {
-  const params = new URLSearchParams(window.location.search);
-  const product = params.get("product");
-  const size = params.get("size");
-  const price = params.get("price");
-  const image = params.get("image");
+    <body class="bg-gray-950 text-white">
+  <!-- COD Order Layout -->
+  <div class="max-w-md mx-auto bg-gray-900 text-white rounded-2xl p-4 shadow-lg mt-10">
+    <h2 class="text-xl font-bold mb-4 text-center">Cash on Delivery</h2>
 
-  // Display the details
-  if (product || size || price || image) {
-    const detailsDiv = document.createElement("div");
-    detailsDiv.innerHTML = `
-      <div style="text-align:center; margin-bottom: 15px;">
-        <img src="${image}" alt="${product}" style="max-width:150px; border-radius:10px; margin-bottom:10px;">
-        <h3 style="margin:0;">${product}</h3>
-        <p style="margin:4px 0;">Size: <b>${size || "Not selected"}</b></p>
-        <p style="margin:4px 0;">Price: ₹${price || "N/A"}</p>
+    <div class="flex items-center bg-gray-800 rounded-lg p-3 mb-4">
+      <img id="productImage" class="w-20 h-20 rounded-lg object-cover" src="" alt="">
+      <div class="ml-4 flex-1">
+        <h3 id="productName" class="font-semibold">Product Name</h3>
+        <p id="productSize" class="text-sm text-gray-300">Size: M</p>
       </div>
-      <hr>
-    `;
-    document.body.prepend(detailsDiv);
-  }
-};
-</script>  </body>
+      <p id="productPrice" class="font-bold text-lg">₹699</p>
+    </div>
+
+    <div class="border-t border-gray-700 pt-2 mb-4">
+      <div class="flex justify-between text-sm">
+        <span>Subtotal</span><span id="subtotal">₹699</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span>Shipping</span><span>Free</span>
+      </div>
+      <div class="flex justify-between font-bold text-lg mt-1">
+        <span>Total</span><span id="total">₹699</span>
+      </div>
+    </div>
+
+    <!-- Your existing customer form -->
+    <form id="codForm">
+      <input type="text" placeholder="Full name" class="w-full p-2 rounded mb-2 text-black">
+      <input type="tel" placeholder="Phone number" class="w-full p-2 rounded mb-2 text-black">
+      <input type="text" placeholder="Address" class="w-full p-2 rounded mb-2 text-black">
+      <button class="w-full bg-green-600 hover:bg-green-700 py-2 rounded-lg font-semibold">
+        Complete Order
+      </button>
+    </form>
+  </div>
+
+  <script src="script.js"></script>
+</body> 
+  </body>
 </html>
