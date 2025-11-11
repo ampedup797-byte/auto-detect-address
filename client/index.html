@@ -72,5 +72,29 @@ async function autoDetectAddress() {
 }
 
 window.onload = autoDetectAddress;
+</script> 
+    <script>
+window.onload = function () {
+  const params = new URLSearchParams(window.location.search);
+  const product = params.get("product");
+  const size = params.get("size");
+  const price = params.get("price");
+  const image = params.get("image");
+
+  // Display the details
+  if (product || size || price || image) {
+    const detailsDiv = document.createElement("div");
+    detailsDiv.innerHTML = `
+      <div style="text-align:center; margin-bottom: 15px;">
+        <img src="${image}" alt="${product}" style="max-width:150px; border-radius:10px; margin-bottom:10px;">
+        <h3 style="margin:0;">${product}</h3>
+        <p style="margin:4px 0;">Size: <b>${size || "Not selected"}</b></p>
+        <p style="margin:4px 0;">Price: ₹${price || "N/A"}</p>
+      </div>
+      <hr>
+    `;
+    document.body.prepend(detailsDiv);
+  }
+};
 </script>  </body>
 </html>
