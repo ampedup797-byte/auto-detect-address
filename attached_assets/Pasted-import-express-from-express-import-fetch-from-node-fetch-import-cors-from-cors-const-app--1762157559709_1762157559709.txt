@@ -1,0 +1,74 @@
+import express from "express";
+import fetch from "node-fetch";
+import cors from "cors";
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+// ✅ Replace these two values with your real info:
+const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
+const ACCESS_TOKEN = "YOUR_ACCESS_TOKEN_HERE"; // paste your Shopify token here
+
+// 🧾 Create COD order route
+app.post("/create-cod-order", async (req, res) => {
+  try {
+    const { name, phone, email, address, city, state, pincode } = req.body;
+
+    const orderData = {
+      order: {
+        line_items: [
+          {
+            title: "Custom COD Order",
+            quantity: 1,
+            price: "0.00",
+          },
+        ],
+        customer: {
+          first_name: name,
+          email: email,
+          phone: phone,
+        },
+        billing_address: {
+          address1: address,
+          city: city,
+          province: state,
+          zip: pincode,
+          country: "India",
+        },
+        shipping_address: {
+          address1: address,
+          city: city,
+          province: state,
+          zip: pincode,
+          country: "India",
+        },
+        financial_status: "pending",
+        tags: ["COD"],
+      },
+    };
+
+    const response = await fetch(`${SHOPIFY_STORE_URL}/admin/api/2024-10/orders.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": ACCESS_TOKEN,
+      },
+      body: JSON.stringify(orderData),
+    });
+
+    const data = await response.json();
+    console.log("Shopify Response:", data);
+
+    if (response.ok) {
+      res.json({ success: true, message: "COD Order created successfully!", data });
+    } else {
+      res.status(400).json({ success: false, message: data.errors });
+    }
+  } catch (error) {
+    console.error("Error creating COD order:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+app.listen(3000, () => console.log("✅ COD Backend running on port 3000"));

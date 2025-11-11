@@ -1,0 +1,65 @@
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { CheckCircle, ExternalLink, RefreshCw } from "lucide-react";
+
+interface OrderSuccessProps {
+  orderId: string;
+  shopifyUrl?: string;
+  onCreateAnother: () => void;
+}
+
+export default function OrderSuccess({
+  orderId,
+  shopifyUrl,
+  onCreateAnother,
+}: OrderSuccessProps) {
+  return (
+    <Card
+      className="p-8 bg-green-50 border-green-200"
+      data-testid="card-order-success"
+    >
+      <div className="text-center">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
+          <CheckCircle className="h-8 w-8 text-green-600" data-testid="icon-success" />
+        </div>
+
+        <h3 className="text-xl font-semibold text-green-900 mb-2" data-testid="text-success-title">
+          Order Created Successfully!
+        </h3>
+
+        <p className="text-sm text-green-800 mb-6" data-testid="text-success-message">
+          Your COD order has been created in Shopify
+        </p>
+
+        <div className="bg-white rounded-md p-4 mb-6 border border-green-200">
+          <p className="text-sm text-green-800 mb-1">Order ID</p>
+          <p className="text-lg font-mono font-semibold text-green-900" data-testid="text-order-id">
+            {orderId}
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          {shopifyUrl && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => window.open(shopifyUrl, '_blank')}
+              data-testid="button-view-shopify"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View in Shopify
+            </Button>
+          )}
+          <Button
+            onClick={onCreateAnother}
+            className="gap-2"
+            data-testid="button-create-another"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Create Another Order
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
