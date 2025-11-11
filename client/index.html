@@ -14,40 +14,42 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-  async function detectAddress() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
+async function autoDetectAddress() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- Replace with your actual Google Maps key
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
 
-        // Replace with your real Google Maps API key
-        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.results && data.results[0]) {
+          const address = data.results[0].address_components;
 
-        try {
-          const response = await fetch(url);
-          const data = await response.json();
-          if (data.results && data.results.length > 0) {
-            const address = data.results[0].formatted_address;
-            alert("Your current address:\n" + address);
-
-            // OR if you want to fill an input field automatically:
-            // document.getElementById("address").value = address;
-          } else {
-            alert("Address not found.");
+          // Helper to get component by type
+          function get(type) {
+            const comp = address.find(c => c.types.includes(type));
+            return comp ? comp.long_name : '';
           }
-        } catch (error) {
-          console.error(error);
-          alert("Error fetching address.");
-        }
-      });
-    } else {
-      alert("Geolocation is not supported by your browser.");
-    }
-  }
 
-  // Run automatically on page load
-  window.onload = detectAddress;
-</script> 
-  </body>
+          // Fill fields
+          document.querySelector('input[placeholder="House number, street name"]').value =
+            get('street_number') + ' ' + get('route');
+          document.querySelector('input[placeholder="City"]').value = get('locality') || get('administrative_area_level_2');
+          document.querySelector('select').value = get('administrative_area_level_1');
+          document.querySelector('input[placeholder="123456"]').value = get('postal_code');
+        }
+      } catch (e) {
+        console.error("Error fetching address:", e);
+      }
+    });
+  } else {
+    alert("Geolocation is not supported in this browser.");
+  }
+}
+
+window.onload = autoDetectAddress;
+</script>  </body>
 </html>
