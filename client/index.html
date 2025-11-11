@@ -13,5 +13,41 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+  async function detectAddress() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        // Replace with your real Google Maps API key
+        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+        try {
+          const response = await fetch(url);
+          const data = await response.json();
+          if (data.results && data.results.length > 0) {
+            const address = data.results[0].formatted_address;
+            alert("Your current address:\n" + address);
+
+            // OR if you want to fill an input field automatically:
+            // document.getElementById("address").value = address;
+          } else {
+            alert("Address not found.");
+          }
+        } catch (error) {
+          console.error(error);
+          alert("Error fetching address.");
+        }
+      });
+    } else {
+      alert("Geolocation is not supported by your browser.");
+    }
+  }
+
+  // Run automatically on page load
+  window.onload = detectAddress;
+</script> 
   </body>
 </html>
