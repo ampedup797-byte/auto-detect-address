@@ -8,7 +8,7 @@ app.use(cors());
 
 // ✅ Replace these two values with your real info:
 const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
-const ACCESS_TOKEN = "YOUR_ACCESS_TOKEN_HERE"; // paste your Shopify token here
+const ACCESS_TOKEN = "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"; // paste your Shopify token here
 
 // 🧾 Create COD order route
 app.post("/create-cod-order", async (req, res) => {
