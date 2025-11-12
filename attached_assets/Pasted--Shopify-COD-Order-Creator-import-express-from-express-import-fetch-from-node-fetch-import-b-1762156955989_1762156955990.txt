@@ -7,8 +7,8 @@ const app = express();
 app.use(bodyParser.json());
 
 // === Replace these with your own store details ===
-const SHOPIFY_STORE = "t1akyv-ss.myshopify.com";
-const ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"; // replace with your token
+const SHOPIFY_STORE = "https://t1akyv-ss.myshopify.com";
+const ACCESS_TOKEN = "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"; // replace with your token
 // ================================================
 
 // Create COD Order
