@@ -53,66 +53,77 @@
   </div>
 
   <script src="script.js"></script>
-</body>  
-    <script>
+      <script>
 async function autoDetectAddress() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- Replace with your actual Google Maps API key
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.results && data.results[0]) {
-          const address = data.results[0].address_components;
-
-          // Helper to get component by type
-          function get(type) {
-            const comp = address.find(c => c.types.includes(type));
-            return comp ? comp.long_name : '';
-          }
-
-          // --- Fill the address fields ---
-          // ✅ Street address (fixed version)
-          const street = [
-            get('street_number'),
-            get('route'),
-            get('sublocality'),
-            get('neighborhood')
-          ].filter(Boolean).join(' ');
-
-          const city = get('locality') || get('administrative_area_level_2');
-          const state = get('administrative_area_level_1');
-          const postalCode = get('postal_code');
-
-          // Fill fields in the form
-          const streetInput = document.querySelector('input[placeholder="House number, street name"]');
-          const cityInput = document.querySelector('input[placeholder="City"]');
-          const stateSelect = document.querySelector('select');
-          const pinInput = document.querySelector('input[placeholder="123456"]');
-
-          if (streetInput) streetInput.value = street;
-          if (cityInput) cityInput.value = city;
-          if (stateSelect) stateSelect.value = state;
-          if (pinInput) pinInput.value = postalCode;
-        }
-      } catch (e) {
-        console.error("Error fetching address:", e);
-      }
-    }, (err) => {
-      console.error("Geolocation error:", err);
-      alert("Unable to detect location. Please enable location services.");
-    });
-  } else {
-    alert("Geolocation is not supported in this browser.");
+  if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+    return;
   }
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; 
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.results || !data.results[0]) return;
+
+      const components = data.results[0].address_components;
+
+      let houseNo = "";
+      let street = "";
+      let sublocality = "";
+      let city = "";
+      let state = "";
+      let postalCode = "";
+
+      components.forEach((comp) => {
+        if (comp.types.includes("street_number")) {
+          houseNo = comp.long_name;     // House number only if Google gives it
+        }
+        if (comp.types.includes("route")) {
+          street = comp.long_name;      // Road / Street
+        }
+        if (comp.types.includes("sublocality") || comp.types.includes("sublocality_level_1")) {
+          sublocality = comp.long_name; // Colony / Area
+        }
+        if (comp.types.includes("locality")) {
+          city = comp.long_name;
+        }
+        if (comp.types.includes("administrative_area_level_1")) {
+          state = comp.long_name;
+        }
+        if (comp.types.includes("postal_code")) {
+          postalCode = comp.long_name;
+        }
+      });
+
+      // -------- Fill inputs safely --------
+      const houseInput = document.querySelector('input[placeholder="House no"]');
+      const addressInput = document.querySelector('input[placeholder="House number, street name"]');
+      const cityInput = document.querySelector('input[placeholder="City"]');
+      const stateSelect = document.querySelector('select');
+      const pinInput = document.querySelector('input[placeholder="123456"]');
+
+      if (houseInput) houseInput.value = houseNo || "";
+      if (addressInput) addressInput.value = `${street} ${sublocality}`.trim();
+      if (cityInput) cityInput.value = city;
+      if (stateSelect) stateSelect.value = state;
+      if (pinInput) pinInput.value = postalCode;
+
+    } catch (err) {
+      console.error("Error fetching address:", err);
+    }
+  }, () => {
+    alert("Unable to detect location. Please enable location services.");
+  });
 }
 
 window.onload = autoDetectAddress;
-</script> 
+</script>      
   </body>
 </html>
