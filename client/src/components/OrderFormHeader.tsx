@@ -10,10 +10,10 @@ export default function OrderFormHeader() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-foreground" data-testid="text-app-title">
-              Shopify COD Order Creator
+              MODEVO
             </h1>
             <p className="text-sm text-muted-foreground" data-testid="text-app-subtitle">
-              Cash on Delivery Order Management
+              Cash on Delivery
             </p>
           </div>
         </div>
