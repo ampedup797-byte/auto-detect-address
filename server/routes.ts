@@ -23,9 +23,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 pincode, 
                 product_id,  
                 size 
-                } = req.body;  || {};   
-
-      const { product_id, size } = req.body;
+                } = req.body || {};
+      
+      //const { product_id, size } = req.body;
       // convert to string because JSON keys are strings
       const pid = String(product_id);
       const sizeKey = String(size);
