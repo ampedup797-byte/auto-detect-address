@@ -10,6 +10,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name, phone, email, address, city, state, pincode } = req.body;
 
+      const { product_id, size } = req.body;
+      // convert to string because JSON keys are strings
+      const pid = String(product_id);
+      const sizeKey = String(size);
+      
+      // find variant id from variants_map.json
+      const variantId =
+        variantsMap[pid]?.variants[sizeKey] ||
+        variantsMap[pid]?.variants[sizeKey.toUpperCase()] ||
+        variantsMap[pid]?.variants[sizeKey.toLowerCase()];
+      
+      if (!variantId) {
+        return res.status(400).json({
+          success: false,
+          message: `Variant not found for product_id ${pid} and size ${sizeKey}`
+        });
+      }
       if (!process.env.SHOPIFY_ACCESS_TOKEN) {
         return res.status(500).json({ 
           success: false, 
@@ -21,12 +38,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order: {
           line_items: [
             {
-              title: "Custom COD Order",
-              quantity: 1,
-              price: "0.00",
-            },
+              variant_id: Number(variantId),
+              quantity: 1
+            }
           ],
-          customer: {
+            customer: {
             first_name: name,
             email: email,
             phone: phone,
