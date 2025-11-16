@@ -8,14 +8,27 @@ const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/create-cod-order", async (req, res) => {
     try {
-      const { name, phone, email, address, city, state, pincode } = req.body;
+      
+        // ---------------- DEBUG LOGS START ----------------
+        console.log("=== DEBUG /api/create-cod-order START ===");
+        console.log("DEBUG req.body:", req.body);
+        console.log("DEBUG keys req.body:", Object.keys(req.body || {}));
+        // ---------------- DEBUG LOGS END ------------------
+
+        const { name, phone, email, address, city, state, pincode, product_id, size } = req.body;      const { name, phone, email, address, city, state, pincode } = req.body;
 
       const { product_id, size } = req.body;
       // convert to string because JSON keys are strings
       const pid = String(product_id);
       const sizeKey = String(size);
-      
+
+      // ---------- DEBUG pid & size ----------
+      console.log("DEBUG pid:", pid);
+      console.log("DEBUG sizeKey:", sizeKey);
+      console.log("DEBUG variantsMap has pid?:", !!variantsMap[pid]);
+      console.log("DEBUG variantsMap entry:", variantsMap[pid]);      
       // find variant id from variants_map.json
+      
       const variantId =
         variantsMap[pid]?.variants[sizeKey] ||
         variantsMap[pid]?.variants[sizeKey.toUpperCase()] ||
