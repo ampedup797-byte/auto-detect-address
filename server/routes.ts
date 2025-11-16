@@ -1,21 +1,20 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import fetch from "node-fetch";
-import variantsMap from "../variants_map.json";
+const variantsMap = require("../variants_map.json");
 
 const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
-
 export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/create-cod-order", async (req, res) => {
     try {
-      
         // ---------------- DEBUG LOGS START ----------------
         console.log("=== DEBUG /api/create-cod-order START ===");
         console.log("DEBUG req.body:", req.body);
         console.log("DEBUG keys req.body:", Object.keys(req.body || {}));
         // ---------------- DEBUG LOGS END ------------------
 
-        const { name, phone, email, address, city, state, pincode, product_id, size } = req.body;      const { name, phone, email, address, city, state, pincode } = req.body;
+        const { name, phone, email, address, city, state, pincode, product_id, size } = req.body;     
+        const { name, phone, email, address, city, state, pincode } = req.body;
 
       const { product_id, size } = req.body;
       // convert to string because JSON keys are strings
