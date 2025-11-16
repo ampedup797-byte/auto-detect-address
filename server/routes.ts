@@ -14,7 +14,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // ---------------- DEBUG LOGS END ------------------
 
         const { name, phone, email, address, city, state, pincode, product_id, size } = req.body;     
-        const { name, phone, email, address, city, state, pincode } = req.body;
 
       const { product_id, size } = req.body;
       // convert to string because JSON keys are strings
