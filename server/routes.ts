@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import fetch from "node-fetch";
+import variantsMap from "../variants_map.json";
 
 const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
 
