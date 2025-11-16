@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import fetch from "node-fetch";
-const variantsMap = require("../variants_map.json");
+//const variantsMap = require("../variants_map.json");
 
 const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
 export async function registerRoutes(app: Express): Promise<Server> {
