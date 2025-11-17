@@ -42,7 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         variantsMap[pid]?.variants[sizeKey.toUpperCase()] ||
         variantsMap[pid]?.variants[sizeKey.toLowerCase()];
       
-      if (!variantId) {
+      if (variantId) {
         return res.status(400).json({
           success: false,
           message: `Variant not found for product_id ${pid} and size ${sizeKey}`
