@@ -119,5 +119,92 @@
    
    window.onload = autoDetectAddress;
  </script> 
-    </body>
+
+        <button id="createCodBtn"
+style="width:100%; padding:15px; background:black; color:white; font-size:18px; border-radius:10px; margin-top:20px;">
+  Order Now - Cash on Delivery
+</button>  
+
+<script>
+(() => {
+
+  const RENDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order";
+
+  function q(x){ return document.querySelector(x); }
+  function qa(x){ return Array.from(document.querySelectorAll(x)); }
+
+  // ---- READ PRODUCT ID ----
+  function readProductId() {
+    const hid = q('input[name="id"]'); // Shopify hidden variant/product id
+    if (hid && hid.value) return hid.value;
+
+    const fallback = qa('input[type="hidden"]').map(x => x.value).find(v => /^[0-9]{6,}$/.test(v));
+    if (fallback) return fallback;
+
+    return undefined;
+  }
+
+  // ---- READ SIZE ----
+  function readSize() {
+    const checked = q('input[type="radio"]:checked');
+    if (checked) return checked.value;
+
+    const active = q('.size.selected, .swatch--selected');
+    if (active) return active.textContent.trim();
+
+    return undefined;
+  }
+
+  async function createCodOrder(payload) {
+    const res = await fetch(RENDER_URL, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+
+    const product_id = readProductId();
+    const size = readSize();
+
+    if (!product_id || !size) {
+      alert("Product ID or Size not found. Please select your size.");
+      return;
+    }
+
+    const name = q('input[name="name"]')?.value || "";
+    const phone = q('input[name="phone"]')?.value || "";
+    const email = q('input[name="email"]')?.value || "";
+    const address = q('input[name="address"]')?.value || "";
+    const city = q('input[name="city"]')?.value || "";
+    const state = q('input[name="state"]')?.value || "";
+    const pincode = q('input[name="pincode"]')?.value || "";
+
+    const payload = { name, phone, email, address, city, state, pincode, product_id, size };
+
+    const res = await createCodOrder(payload);
+
+    if (res.success) {
+      alert("Order Created Successfully!");
+    } else {
+      alert("Order Failed: " + res.message);
+    }
+  }
+
+  function attach() {
+    const btn = q("#createCodBtn");
+    if (!btn) return;
+    btn.addEventListener("click", handleCreate);
+  }
+
+  document.addEventListener("DOMContentLoaded", attach);
+
+})();
+</script>
+
+        
+      </body>
 </html>
