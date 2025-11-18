@@ -221,8 +221,28 @@
       return;
     }
 
-    const payload = { name, phone, email, address, city, state, pincode, product_id: product_id, size: size };
-    try {
+    const payload = {
+  token: "custom_" + Date.now(),
+  original_total_price: price,
+  total_price: price,
+  item_count: 1,
+  items: [
+    {
+      product_id,
+      variant_id,
+      quantity: 1,
+      price,
+      title: productName,
+      variant_title: size
+    }
+  ],
+  name,
+  phone,
+  address,
+  city,
+  state,
+  pincode
+};    try {
       const result = await createCodOrder(payload);
       if (result.status >= 200 && result.status < 300) {
         alert('COD order created successfully!');
