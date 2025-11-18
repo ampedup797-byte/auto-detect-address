@@ -120,91 +120,136 @@
    window.onload = autoDetectAddress;
  </script> 
 
-        <button id="createCodBtn"
-style="width:100%; padding:15px; background:black; color:white; font-size:18px; border-radius:10px; margin-top:20px;">
+       <!-- add this button where users should click -->
+<button id="createCodBtn" style="padding:12px 18px; font-weight:700; background:#111; color:#fff; border-radius:8px; border:0; cursor:pointer;">
   Order Now - Cash on Delivery
-</button>  
+</button>
 
+<!-- paste this script AFTER your other scripts and before </body> -->
 <script>
 (() => {
+  const RENDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order"; // <- keep your endpoint
 
-  const RENDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order";
+  function q(sel){ try{ return document.querySelector(sel) }catch(e){return null} }
+  function qa(sel){ try{ return Array.from(document.querySelectorAll(sel)) }catch(e){return []} }
 
-  function q(x){ return document.querySelector(x); }
-  function qa(x){ return Array.from(document.querySelectorAll(x)); }
+  function readProductId(){
+    // try several common selectors (Shopify themes)
+    const container = q('[data-product-id], [data-product-id*=""]');
+    if (container) {
+      const pid = container.getAttribute('data-product-id') || container.dataset.productId;
+      if (pid) { console.log('DEBUG found product_id from data-product-id', pid); return String(pid); }
+    }
+    const hid = q('form[action*="/cart"] input[name="id"], form input[name="id"], input[name="id"]');
+    if (hid && hid.value) { console.log('DEBUG found product_id from input[name=id]', hid.value); return String(hid.value); }
+    const meta = q('meta[name="product-id"], meta[property="product:id"]');
+    if (meta && meta.content) { console.log('DEBUG found product_id from meta', meta.content); return String(meta.content); }
+    const prodWrap = q('.product, .product__info, [data-product-variant-id], [data-product-id]');
+    if (prodWrap && (prodWrap.dataset.productId || prodWrap.getAttribute('data-product-id') || prodWrap.getAttribute('data-product-variant-id'))) {
+      const tryPid = prodWrap.dataset.productId || prodWrap.getAttribute('data-product-id') || prodWrap.getAttribute('data-product-variant-id');
+      if (tryPid) { console.log('DEBUG found product_id from wrapper', tryPid); return String(tryPid); }
+    }
+    const hiddenLong = qa('input[type="hidden"]').map(i=>i.value).find(v => v && /^[0-9]{6,}$/.test(v));
+    if (hiddenLong) { console.log('DEBUG found product_id fallback from hidden inputs', hiddenLong); return String(hiddenLong); }
 
-  // ---- READ PRODUCT ID ----
-  function readProductId() {
-    const hid = q('input[name="id"]'); // Shopify hidden variant/product id
-    if (hid && hid.value) return hid.value;
-
-    const fallback = qa('input[type="hidden"]').map(x => x.value).find(v => /^[0-9]{6,}$/.test(v));
-    if (fallback) return fallback;
-
+    console.warn('DEBUG cannot find product_id on page');
     return undefined;
   }
 
-  // ---- READ SIZE ----
   function readSize() {
-    const checked = q('input[type="radio"]:checked');
-    if (checked) return checked.value;
+    const checkedRadio = q('input[type="radio"]:checked, input[data-variant-size]:checked, input[name="size"]:checked, input[name="variant"]:checked');
+    if (checkedRadio) { console.log('DEBUG found size from checked radio', checkedRadio.value || checkedRadio.dataset.value); return String(checkedRadio.value || checkedRadio.dataset.value || checkedRadio.getAttribute('value')); }
 
-    const active = q('.size.selected, .swatch--selected');
-    if (active) return active.textContent.trim();
+    const activeBtn = q('.size-button.active, .option-button.is-active, .size.selected, .variant-option.selected, .swatch--selected, .selected-option');
+    if (activeBtn) { console.log('DEBUG found size from active btn', activeBtn.textContent.trim()); return activeBtn.dataset.value || activeBtn.textContent.trim(); }
 
+    const select = q('select[name="id"], select[name="variant"], select[name="size"], select.size-select');
+    if (select) {
+      const opt = select.options[select.selectedIndex];
+      if (opt) {
+        const sizeVal = opt.dataset.size || opt.textContent || opt.value;
+        console.log('DEBUG found size from select option', sizeVal);
+        return String(sizeVal);
+      }
+    }
+
+    const chosenLabel = q('.product__option--selected, .selected-option, .swatch__value--selected');
+    if (chosenLabel) { console.log('DEBUG found size from chosen label', chosenLabel.textContent.trim()); return chosenLabel.textContent.trim(); }
+
+    const sizeTextEl = qa('p, span, div').map(n => n.textContent.trim()).find(t => /^Size\s*[:\-]\s*\w{1,3}$/i.test(t));
+    if (sizeTextEl) {
+      const m = sizeTextEl.match(/[:\-]\s*(\w{1,3})$/);
+      if (m) { console.log('DEBUG found size fallback from text', m[1]); return m[1]; }
+    }
+
+    console.warn('DEBUG cannot find size on page');
     return undefined;
   }
 
-  async function createCodOrder(payload) {
+  async function createCodOrder(payload){
+    console.log('DEBUG sending COD payload ->', payload);
     const res = await fetch(RENDER_URL, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    return res.json();
+    const text = await res.text().catch(()=>null);
+    let json = null;
+    try{ json = JSON.parse(text); }catch(e){ /* not json */ }
+    console.log('DEBUG server status', res.status, 'response', json || text);
+    return { status: res.status, body: json || text };
   }
 
-  async function handleCreate(e) {
-    e.preventDefault();
+  async function handleCreate(e){
+    e && e.preventDefault && e.preventDefault();
 
     const product_id = readProductId();
     const size = readSize();
 
+    // read basic customer fields
+    const name = (q('input[name="name"], input[name="customer_name"], input[placeholder*="Full name"], input[id*="name"]') || {}).value || '';
+    const phone = (q('input[name="phone"], input[placeholder*="Phone"], input[id*="phone"], input[type="tel"]') || {}).value || '';
+    const email = (q('input[type="email"], input[name="email"]') || {}).value || '';
+    const address = (q('input[name="address"], textarea[name="address"], input[placeholder*="House"], input[placeholder*="Address"]') || {}).value || '';
+    const city = (q('input[placeholder="City"], input[name="city"], select[name="city"]') || {}).value || '';
+    const state = (q('input[placeholder="State"], input[name="state"], select[name="state"]') || {}).value || '';
+    const pincode = (q('input[placeholder="123456"], input[name="zip"], input[name="pincode"], input[name="postal"]') || {}).value || '';
+
     if (!product_id || !size) {
-      alert("Product ID or Size not found. Please select your size.");
+      console.error('ERROR product_id or size missing', { product_id, size });
+      alert('Cannot create order: product or size not found. Open console and send me the "DEBUG found/DEBUG cannot find" logs.');
       return;
     }
 
-    const name = q('input[name="name"]')?.value || "";
-    const phone = q('input[name="phone"]')?.value || "";
-    const email = q('input[name="email"]')?.value || "";
-    const address = q('input[name="address"]')?.value || "";
-    const city = q('input[name="city"]')?.value || "";
-    const state = q('input[name="state"]')?.value || "";
-    const pincode = q('input[name="pincode"]')?.value || "";
-
-    const payload = { name, phone, email, address, city, state, pincode, product_id, size };
-
-    const res = await createCodOrder(payload);
-
-    if (res.success) {
-      alert("Order Created Successfully!");
-    } else {
-      alert("Order Failed: " + res.message);
+    const payload = { name, phone, email, address, city, state, pincode, product_id: product_id, size: size };
+    try {
+      const result = await createCodOrder(payload);
+      if (result.status >= 200 && result.status < 300) {
+        alert('COD order created successfully!');
+        if (result.body && result.body.url) window.location.href = result.body.url;
+      } else {
+        alert('Order creation failed (check console). Server returned: ' + (result.body && result.body.message ? result.body.message : JSON.stringify(result.body) || result.status));
+      }
+    } catch(err){
+      console.error('Network error:', err);
+      alert('Network error when creating order. See console.');
     }
   }
 
-  function attach() {
-    const btn = q("#createCodBtn");
-    if (!btn) return;
-    btn.addEventListener("click", handleCreate);
+  function attach(){
+    const btn = q('#createCodBtn') || q('button#createCodBtn') || q('button[data-action="create-cod"]');
+    if (!btn) {
+      console.warn('DEBUG create button not found by id #createCodBtn - place the button HTML or change selector');
+      return;
+    }
+    btn.addEventListener('click', handleCreate, {passive:false});
+    console.log('DEBUG attached createCodBtn handler');
   }
 
-  document.addEventListener("DOMContentLoaded", attach);
-
+  if (document.readyState === 'complete' || document.readyState === 'interactive') attach();
+  else document.addEventListener('DOMContentLoaded', attach);
 })();
 </script>
-
         
       </body>
 </html>
