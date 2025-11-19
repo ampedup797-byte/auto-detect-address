@@ -94,156 +94,130 @@
    window.onload = autoDetectAddress;
  </script> 
 
-       <!-- add this button where users should click -->
-<button id="createCodBtn" style="padding:12px 18px; font-weight:700; background:#111; color:#fff; border-radius:8px; border:0; cursor:pointer;">
-  Order Now - Cash on Delivery
-</button>
+        <script>
+(async () => {
+  const CREATE_ORDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order"; // change if needed
 
-<!-- paste this script AFTER your other scripts and before </body> -->
-<script>
-(() => {
-  const RENDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order"; // <- keep your endpoint
+  // parse query params from Shopify redirect
+  const p = new URLSearchParams(window.location.search);
+  const product_id = p.get('product_id') || p.get('productId') || p.get('pid');
+  const size = p.get('size') || p.get('variant_title') || p.get('option1') || '';
+  const price = p.get('price') || null; // optional
 
-  function q(sel){ try{ return document.querySelector(sel) }catch(e){return null} }
-  function qa(sel){ try{ return Array.from(document.querySelectorAll(sel)) }catch(e){return []} }
+  // Fill form UI (optional)
+  const productNameElem = document.querySelector('#productName');
+  if (productNameElem) productNameElem.textContent = (p.get('title') || '');
 
-  function readProductId(){
-    // try several common selectors (Shopify themes)
-    const container = q('[data-product-id], [data-product-id*=""]');
-    if (container) {
-      const pid = container.getAttribute('data-product-id') || container.dataset.productId;
-      if (pid) { console.log('DEBUG found product_id from data-product-id', pid); return String(pid); }
-    }
-    const hid = q('form[action*="/cart"] input[name="id"], form input[name="id"], input[name="id"]');
-    if (hid && hid.value) { console.log('DEBUG found product_id from input[name=id]', hid.value); return String(hid.value); }
-    const meta = q('meta[name="product-id"], meta[property="product:id"]');
-    if (meta && meta.content) { console.log('DEBUG found product_id from meta', meta.content); return String(meta.content); }
-    const prodWrap = q('.product, .product__info, [data-product-variant-id], [data-product-id]');
-    if (prodWrap && (prodWrap.dataset.productId || prodWrap.getAttribute('data-product-id') || prodWrap.getAttribute('data-product-variant-id'))) {
-      const tryPid = prodWrap.dataset.productId || prodWrap.getAttribute('data-product-id') || prodWrap.getAttribute('data-product-variant-id');
-      if (tryPid) { console.log('DEBUG found product_id from wrapper', tryPid); return String(tryPid); }
-    }
-    const hiddenLong = qa('input[type="hidden"]').map(i=>i.value).find(v => v && /^[0-9]{6,}$/.test(v));
-    if (hiddenLong) { console.log('DEBUG found product_id fallback from hidden inputs', hiddenLong); return String(hiddenLong); }
-
-    console.warn('DEBUG cannot find product_id on page');
-    return undefined;
+  // Confirm button listener (use your form input selectors)
+  const btn = document.querySelector('#confirmOrderBtn');
+  if (!btn) {
+    console.warn("confirmOrderBtn not found — will not auto-submit. Add a #confirmOrderBtn to your page.");
+    return;
   }
 
-  function readSize() {
-    const checkedRadio = q('input[type="radio"]:checked, input[data-variant-size]:checked, input[name="size"]:checked, input[name="variant"]:checked');
-    if (checkedRadio) { console.log('DEBUG found size from checked radio', checkedRadio.value || checkedRadio.dataset.value); return String(checkedRadio.value || checkedRadio.dataset.value || checkedRadio.getAttribute('value')); }
+  btn.addEventListener('click', async (e) => {
+    e.preventDefault();
 
-    const activeBtn = q('.size-button.active, .option-button.is-active, .size.selected, .variant-option.selected, .swatch--selected, .selected-option');
-    if (activeBtn) { console.log('DEBUG found size from active btn', activeBtn.textContent.trim()); return activeBtn.dataset.value || activeBtn.textContent.trim(); }
-
-    const select = q('select[name="id"], select[name="variant"], select[name="size"], select.size-select');
-    if (select) {
-      const opt = select.options[select.selectedIndex];
-      if (opt) {
-        const sizeVal = opt.dataset.size || opt.textContent || opt.value;
-        console.log('DEBUG found size from select option', sizeVal);
-        return String(sizeVal);
-      }
-    }
-
-    const chosenLabel = q('.product__option--selected, .selected-option, .swatch__value--selected');
-    if (chosenLabel) { console.log('DEBUG found size from chosen label', chosenLabel.textContent.trim()); return chosenLabel.textContent.trim(); }
-
-    const sizeTextEl = qa('p, span, div').map(n => n.textContent.trim()).find(t => /^Size\s*[:\-]\s*\w{1,3}$/i.test(t));
-    if (sizeTextEl) {
-      const m = sizeTextEl.match(/[:\-]\s*(\w{1,3})$/);
-      if (m) { console.log('DEBUG found size fallback from text', m[1]); return m[1]; }
-    }
-
-    console.warn('DEBUG cannot find size on page');
-    return undefined;
-  }
-
-  async function createCodOrder(payload){
-    console.log('DEBUG sending COD payload ->', payload);
-    const res = await fetch(RENDER_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    });
-    const text = await res.text().catch(()=>null);
-    let json = null;
-    try{ json = JSON.parse(text); }catch(e){ /* not json */ }
-    console.log('DEBUG server status', res.status, 'response', json || text);
-    return { status: res.status, body: json || text };
-  }
-
-  async function handleCreate(e){
-    e && e.preventDefault && e.preventDefault();
-
-    const product_id = readProductId();
-    const size = readSize();
-
-    // read basic customer fields
-    const name = (q('input[name="name"], input[name="customer_name"], input[placeholder*="Full name"], input[id*="name"]') || {}).value || '';
-    const phone = (q('input[name="phone"], input[placeholder*="Phone"], input[id*="phone"], input[type="tel"]') || {}).value || '';
-    const email = (q('input[type="email"], input[name="email"]') || {}).value || '';
-    const address = (q('input[name="address"], textarea[name="address"], input[placeholder*="House"], input[placeholder*="Address"]') || {}).value || '';
-    const city = (q('input[placeholder="City"], input[name="city"], select[name="city"]') || {}).value || '';
-    const state = (q('input[placeholder="State"], input[name="state"], select[name="state"]') || {}).value || '';
-    const pincode = (q('input[placeholder="123456"], input[name="zip"], input[name="pincode"], input[name="postal"]') || {}).value || '';
-
-    if (!product_id || !size) {
-      console.error('ERROR product_id or size missing', { product_id, size });
-      alert('Cannot create order: product or size not found. Open console and send me the "DEBUG found/DEBUG cannot find" logs.');
-      return;
-    }
+    const name = (document.querySelector('input[name="name"]') || {}).value || 'Test User';
+    const phone = (document.querySelector('input[name="phone"]') || {}).value || '9999999999';
+    const email = (document.querySelector('input[name="email"]') || {}).value || '';
+    const address = (document.querySelector('textarea[name="address"]') || {}).value || '';
+    const city = (document.querySelector('input[name="city"]') || {}).value || '';
+    const state = (document.querySelector('input[name="state"]') || {}).value || '';
+    const pincode = (document.querySelector('input[name="pincode"]') || {}).value || '';
 
     const payload = {
-  token: "custom_" + Date.now(),
-  original_total_price: price,
-  total_price: price,
-  item_count: 1,
-  items: [
-    {
-      product_id,
-      variant_id,
-      quantity: 1,
-      price,
-      title: productName,
-      variant_title: size
-    }
-  ],
-  name,
-  phone,
-  address,
-  city,
-  state,
-  pincode
-};    try {
-      const result = await createCodOrder(payload);
-      if (result.status >= 200 && result.status < 300) {
-        alert('COD order created successfully!');
-        if (result.body && result.body.url) window.location.href = result.body.url;
+      name, phone, email, address, city, state, pincode,
+      product_id: String(product_id),
+      size: String(size)
+    };
+
+    console.log("DEBUG sending payload:", payload);
+
+    try {
+      const res = await fetch(CREATE_ORDER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      console.log("DEBUG response", res.status, text);
+      if (res.ok) {
+        alert("Order created successfully!");
+        // optionally parse json and redirect if server returns url
+        try { const j = JSON.parse(text); if (j && j.url) window.location.href = j.url; } catch(e){}
       } else {
-        alert('Order creation failed (check console). Server returned: ' + (result.body && result.body.message ? result.body.message : JSON.stringify(result.body) || result.status));
+        alert("Order creation failed: " + text);
       }
-    } catch(err){
-      console.error('Network error:', err);
-      alert('Network error when creating order. See console.');
+    } catch (err) {
+      console.error("Network error:", err);
+      alert("Network error when creating order. See console.");
     }
-  }
-
-  function attach(){
-    const btn = q('#createCodBtn') || q('button#createCodBtn') || q('button[data-action="create-cod"]');
-    if (!btn) {
-      console.warn('DEBUG create button not found by id #createCodBtn - place the button HTML or change selector');
-      return;
-    }
-    btn.addEventListener('click', handleCreate, {passive:false});
-    console.log('DEBUG attached createCodBtn handler');
-  }
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') attach();
-  else document.addEventListener('DOMContentLoaded', attach);
+  });
 })();
 </script>
-        
+
+        <script>
+(async () => {
+  const CREATE_ORDER_URL = "https://auto-detect-address.onrender.com"; // change if needed
+
+  // parse query params from Shopify redirect
+  const p = new URLSearchParams(window.location.search);
+  const product_id = p.get('product_id') || p.get('productId') || p.get('pid');
+  const size = p.get('size') || p.get('variant_title') || p.get('option1') || '';
+  const price = p.get('price') || null; // optional
+
+  // Fill form UI (optional)
+  const productNameElem = document.querySelector('#productName');
+  if (productNameElem) productNameElem.textContent = (p.get('title') || '');
+
+  // Confirm button listener (use your form input selectors)
+  const btn = document.querySelector('#confirmOrderBtn');
+  if (!btn) {
+    console.warn("confirmOrderBtn not found — will not auto-submit. Add a #confirmOrderBtn to your page.");
+    return;
+  }
+
+  btn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const name = (document.querySelector('input[name="name"]') || {}).value || 'Test User';
+    const phone = (document.querySelector('input[name="phone"]') || {}).value || '9999999999';
+    const email = (document.querySelector('input[name="email"]') || {}).value || '';
+    const address = (document.querySelector('textarea[name="address"]') || {}).value || '';
+    const city = (document.querySelector('input[name="city"]') || {}).value || '';
+    const state = (document.querySelector('input[name="state"]') || {}).value || '';
+    const pincode = (document.querySelector('input[name="pincode"]') || {}).value || '';
+
+    const payload = {
+      name, phone, email, address, city, state, pincode,
+      product_id: String(product_id),
+      size: String(size)
+    };
+
+    console.log("DEBUG sending payload:", payload);
+
+    try {
+      const res = await fetch(CREATE_ORDER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const text = await res.text();
+      console.log("DEBUG response", res.status, text);
+      if (res.ok) {
+        alert("Order created successfully!");
+        // optionally parse json and redirect if server returns url
+        try { const j = JSON.parse(text); if (j && j.url) window.location.href = j.url; } catch(e){}
+      } else {
+        alert("Order creation failed: " + text);
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      alert("Network error when creating order. See console.");
+    }
+  });
+})();
+</script>    
       </body>
 </html>
