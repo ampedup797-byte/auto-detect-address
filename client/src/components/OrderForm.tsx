@@ -295,7 +295,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             ) : (
               <>
                 <ShoppingBag className="mr-2 h-5 w-5" />
-                Create COD Order
+                Complete Order
               </>
             )}
           </Button>
