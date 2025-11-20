@@ -116,7 +116,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     <Card className="p-8" data-testid="card-order-form">
       <div className="mb-8">
         <h2 className="text-2xl font-semibold text-foreground mb-2" data-testid="text-form-title">
-          Create New Order
+          Complete order
         </h2>
         <p className="text-sm text-muted-foreground" data-testid="text-form-description">
           Fill in customer details to create a COD order in Shopify
