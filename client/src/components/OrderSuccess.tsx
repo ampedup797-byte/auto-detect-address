@@ -24,11 +24,11 @@ export default function OrderSuccess({
         </div>
 
         <h3 className="text-xl font-semibold text-green-900 mb-2" data-testid="text-success-title">
-          Order Created Successfully!
+          Order Confirmed Successfully!
         </h3>
 
         <p className="text-sm text-green-800 mb-6" data-testid="text-success-message">
-          Your COD order has been created in Shopify
+          THANK YOU FOR ORDER🎉
         </p>
 
         <div className="bg-white rounded-md p-4 mb-6 border border-green-200">
@@ -56,7 +56,7 @@ export default function OrderSuccess({
             data-testid="button-create-another"
           >
             <RefreshCw className="h-4 w-4" />
-            Create Another Order
+              close
           </Button>
         </div>
       </div>
