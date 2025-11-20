@@ -8,6 +8,9 @@ import { apiRequest } from "@/lib/queryClient";
 
 type OrderState = "form" | "success" | "error";
 
+const STORE_URL = "https://tlakyv-ss.myshopify.com"; // or your custom domain
+const TRACK_URL_BASE = "https://t1akyv-ss.myshopify.com/pages/track-your-order"; // change if you have another tracking page
+
 export default function Home() {
   const [orderState, setOrderState] = useState<OrderState>("form");
   const [isLoading, setIsLoading] = useState(false);
@@ -86,13 +89,13 @@ export default function Home() {
           )}
 
           {orderState === "success" && (
-            <OrderSuccess
-              orderId={orderId}
-              shopifyUrl={`https://t1akyv-ss.myshopify.com/admin/orders/${orderId}`}
-              onCreateAnother={handleCreateAnother}
-            />
-          )}
-
+  <OrderSuccess
+    orderId={orderId}
+    shopifyUrl={`${TRACK_URL_BASE}?
+  ?order_id=${orderId}`} // this will be "Track your order" link
+    onCreateAnother={handleCreateAnother}
+  />
+)}
           {orderState === "error" && (
             <OrderError message={errorMessage} onRetry={handleRetry} />
           )}
