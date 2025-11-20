@@ -24,7 +24,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 product_id,  
                 size 
                 } = req.body || {};
-      
+
+
+      // Extra details shown in Shopify under "Additional details"
+const noteAttributes = [
+  { name: "NAME", value: name || "" },
+  { name: "Phone number", value: phone || "" },
+  { name: "Road name/ Area /colony", value: address || "" },
+  { name: "City", value: city || "" },
+  { name: "State", value: state || "" },
+  { name: "zip_code", value: pincode || "" },
+  { name: "Size", value: size || "" },
+  { name: "Email", value: email || "" },
+];      
       //const { product_id, size } = req.body;
       // convert to string because JSON keys are strings
       const pid = String(product_id);
@@ -84,6 +96,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           financial_status: "pending",
           tags: ["COD"],
+
+          note_attributes: noteAttributes,
         },
       };
 
