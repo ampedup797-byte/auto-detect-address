@@ -2,6 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CheckCircle, ExternalLink, RefreshCw } from "lucide-react";
 
+const WHATSAPP_LINK_BASE =
+  "https://wa.me/917286877842?text=Hi%20MODEVO,%20I%20want%20to%20track%20my%20order%20"; 
+// replace 918XXXXXXXXX with your real WhatsApp number
 interface OrderSuccessProps {
   orderId: string;
   shopifyUrl?: string;
@@ -28,7 +31,10 @@ export default function OrderSuccess({
         </h3>
 
         <p className="text-sm text-green-800 mb-6" data-testid="text-success-message">
-          THANK YOU FOR ORDER🎉
+          THANK YOUR ORDER CONFIRMED🎉
+          YOU CAN TRACK YOUR ORDER OR CHAT WHTH 
+          US ON WHATSAPP IF YOU HAVE ANY QUESTIONS
+          
         </p>
 
         <div className="bg-white rounded-md p-4 mb-6 border border-green-200">
