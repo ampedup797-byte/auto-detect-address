@@ -52,6 +52,7 @@ export interface FormData {
   name: string;
   phone: string;
   email: string;
+  houseNo: string;
   address: string;
   city: string;
   state: string;
@@ -63,6 +64,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     name: "",
     phone: "",
     email: "",
+    houseNo: "",    
     address: "",
     city: "",
     state: "",
@@ -92,6 +94,9 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Invalid email address";
     }
+    if (!formData.houseNo.trim()) {
+      newErrors.houseNo = "House / building name is required";
+    }   
     if (!formData.address.trim()) newErrors.address = "Address is required";
     if (!formData.city.trim()) newErrors.city = "City is required";
     if (!formData.state) newErrors.state = "State is required";
