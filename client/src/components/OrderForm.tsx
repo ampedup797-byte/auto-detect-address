@@ -191,6 +191,28 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
         </div>
 
         <div>
+          <Label htmlFor="houseNo" className="text-sm font-medium">
+            House / Building Name <span className="text-destructive">*</span>
+          </Label>
+          
+          <Input
+            id="houseNo"
+            data-testid="input-houseNo"
+            placeholder="Flat / House No / Building Name"
+            value={formData.houseNo}
+            onChange={(e) => handleChange("houseNo", e.target.value)}
+            className={errors.houseNo ? "border-destructive" : ""}
+            disabled={isLoading}
+            />
+          
+          {errors.houseNo && (
+      <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
+        {errors.houseNo}
+      </p>
+    )}
+        </div>
+        
+        <div>
           <Label htmlFor="address" className="text-sm font-medium">
             Street Address <span className="text-destructive">*</span>
           </Label>
