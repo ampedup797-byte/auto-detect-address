@@ -18,91 +18,134 @@
       <body class="bg-gray-950 text-white">
   
   </div>   
-     
-<script>
-   async function autoDetectAddress() {
-     if (!navigator.geolocation) {
-       alert("Geolocation not supported");
-       return;
-     }
-     navigator.geolocation.getCurrentPosition(async (pos) => {
-       const lat = pos.coords.latitude;
-       const lng = pos.coords.longitude;
-       const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; 
-       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-       
-       try {
-         const res = await fetch(url);
-         const data = await res.json();
-         
-         if (!data.results || !data.results[0]) return;
-         
-         const results = data.results[0];
-         const components = result.address_components;
-         
-         let houseNo = "";
-         let street = "";
-         let sublocality = "";
-         let city = "";
-         let state = "";
-         let postalCode = "";
-         const formattedAddrress = result.formatted_address || "";
-         
-         components.forEach((comp) => {
-           if (comp.types.includes("street_number")) {
-             houseNo = comp.long_name;     // House number only if Google gives it
-           }
-           if (comp.types.includes("route")) {
-             street = comp.long_name;      // Road / Street
-           }
-           if (comp.types.includes("sublocality") || comp.types.includes("sublocality_level_1")){
-             sublocality = comp.long_name; // Colony / Area
-           }
-           if (comp.types.includes("locality")) {
-             city = comp.long_name;
-           }
-           if (comp.types.includes("administrative_area_level_1")) {
-             state = comp.long_name;
-           }
-           if (comp.types.includes("postal_code")) {
-             postalCode = comp.long_name;
-           }
-         });
 
-         // Fallback: try to extract house number from formatted_address
-         if (!houseNo && formattedAddress) {
-           const match = formattedAddress.match(/^\d+/);
-           if (match) {
-             houseNo = match[0]; // e.g. "12" from "12, Vaishali Nagar..."
-           }
-         }         
-         // -------- Fill inputs safely --------
+        <script>
+  // Run after page fully loaded so React inputs exist
+  window.addEventListener("load", () => {
+    autoDetectAddress().catch((err) =>
+      console.error("autoDetectAddress error:", err)
+    );
+  });
 
-         // -------- Fill inputs safely -------
-         const addressInput = document.querySelector("#address");
-         const cityInput = document.querySelector("#city");
-         const stateSelect = document.querySelector("#state");
-         const pinInput = document.querySelector("#pincode");
-         
-         // Build "House no, Street, Area/Colony"
-         const combinedAddress = [houseNo, street, sublocality]
-           .filter(Boolean)
-           .join(", ");
-         if (addressInput) addressInput.value = combinedAddress || "";
-         if (cityInput) cityInput.value = city;
-         if (stateSelect) stateSelect.value = state;
-         if (pinInput) pinInput.value = postalCode;       
-       
-       } catch (err) {
-         console.error("Error fetching address:", err);
-       }
-     }, () => {
-       alert("Unable to detect location. Please enable location services.");
-     });
-   }
-   
-   window.onload = autoDetectAddress;
- </script> 
+  async function autoDetectAddress() {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation not supported");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          // 👉 use your real API key here (this was in your old code)
+          const apiKey = "AIzaSyCM_L3ma9CWW-3LFYZXbPr6ZFDGcj3xvA";
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+          const res = await fetch(url);
+          const data = await res.json();
+
+          if (!data.results || !data.results.length) {
+            console.warn("No geocode results");
+            return;
+          }
+
+          const result = data.results[0];
+          const components = result.address_components;
+
+          let houseNo = "";
+          let route = "";       // road name
+          let sublocality = ""; // colony / area
+          let city = "";
+          let state = "";
+          let postalCode = "";
+
+          components.forEach((comp) => {
+            if (comp.types.includes("street_number")) {
+              houseNo = comp.long_name;
+            }
+            if (comp.types.includes("route")) {
+              route = comp.long_name;
+            }
+            if (
+              comp.types.includes("sublocality") ||
+              comp.types.includes("sublocality_level_1")
+            ) {
+              sublocality = comp.long_name;
+            }
+            if (comp.types.includes("locality")) {
+              city = comp.long_name;
+            }
+            if (comp.types.includes("administrative_area_level_1")) {
+              state = comp.long_name;
+            }
+            if (comp.types.includes("postal_code")) {
+              postalCode = comp.long_name;
+            }
+          });
+
+          // 🔁 Fallback: sometimes Google does not send street_number
+          if (!houseNo && result.formatted_address) {
+            const match = result.formatted_address.match(/^\d+[A-Za-z0-9/\-]*/);
+            if (match) {
+              houseNo = match[0]; // e.g. "12" or "12A"
+            }
+          }
+
+          // ===== Fill your form fields =====
+          const houseInput =
+            document.querySelector("#houseNo") ||
+            document.querySelector('input[placeholder*="House"]');
+
+          const addressInput =
+            document.querySelector("#address") ||
+            document.querySelector('input[placeholder="House number, street name"]');
+
+          const cityInput =
+            document.querySelector("#city") ||
+            document.querySelector('input[placeholder="City"]');
+
+          const stateSelect =
+            document.querySelector("#state") || document.querySelector("select");
+
+          const pinInput =
+            document.querySelector("#pincode") ||
+            document.querySelector('input[placeholder="123456"]');
+
+          // Street Address like: "Road Name, Vaishali Nagar"
+          const combinedAddress = [route, sublocality].filter(Boolean).join(", ");
+
+          if (houseInput && houseNo) {
+            houseInput.value = houseNo;
+          }
+
+          if (addressInput && combinedAddress) {
+            addressInput.value = combinedAddress;
+          }
+
+          if (cityInput && city) {
+            cityInput.value = city;
+          }
+
+          if (stateSelect && state) {
+            stateSelect.value = state;
+          }
+
+          if (pinInput && postalCode) {
+            pinInput.value = postalCode;
+          }
+        } catch (err) {
+          console.error("Error fetching geocode:", err);
+        }
+      },
+      (err) => {
+        console.warn("Geolocation error:", err);
+      }
+    );
+  }
+</script>     
+
 
         <script>
 (async () => {
