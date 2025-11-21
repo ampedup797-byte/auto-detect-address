@@ -52,7 +52,7 @@ async function autoDetectAddress() {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
-      const apiKey = "YOUR_API_KEY";
+      const apiKey = "https://auto-detect-address.onrender.com";
       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
 
       const res = await fetch(url);
