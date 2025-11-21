@@ -17,89 +17,84 @@
 
       <body class="bg-gray-950 text-white">
   
-  </div>   
+  </div>  
 
-     <script>
+        <script>
+   async function autoDetectAddress() {
+     if (!navigator.geolocation) {
+       alert("Geolocation not supported");
+       return;
+     }
+     navigator.geolocation.getCurrentPosition(async (pos) => {
+       const lat = pos.coords.latitude;
+       const lng = pos.coords.longitude;
+       const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; 
+       const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+       
+       try {
+         const res = await fetch(url);
+         const data = await res.json();
+         
+         if (!data.results || !data.results[0]) return;
+         
+         const components = data.results[0].address_components;
+         
+         let houseNo = "";
+         let street = "";
+         let sublocality = "";
+         let city = "";
+         let state = "";
+         let postalCode = "";
+         
+         components.forEach((comp) => {
+           if (comp.types.includes("street_number")) {
+             houseNo = comp.long_name;     // House number only if Google gives it
+           }
+           if (comp.types.includes("route")) {
+             street = comp.long_name;      // Road / Street
+           }
+           if (comp.types.includes("sublocality") || comp.types.includes("sublocality_level_1")){
+             sublocality = comp.long_name; // Colony / Area
+           }
+           if (comp.types.includes("locality")) {
+             city = comp.long_name;
+           }
+           if (comp.types.includes("administrative_area_level_1")) {
+             state = comp.long_name;
+           }
+           if (comp.types.includes("postal_code")) {
+             postalCode = comp.long_name;
+           }
+         });
+         
+         // -------- Fill inputs safely --------
 
-// --- ADD THIS FUNCTION AT TOP OF SCRIPT ---
-function fillReactInput(id, value) {
-  if (!value) return;
-  const el = document.getElementById(id);
-  if (!el) {
-    console.warn("No element with id:", id);
-    return;
-  }
-
-  // Set raw value in DOM
-  el.value = value;
-
-  // Tell React that the input changed
-  const eventType = el.tagName === "SELECT" ? "change" : "input";
-  const event = new Event(eventType, { bubbles: true });
-  el.dispatchEvent(event);
-}
-// ------------------------------------------
-
-
-async function autoDetectAddress() {
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    try {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      const apiKey = "https://auto-detect-address.onrender.com";
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      const result = data.results[0];
-      const components = result.address_components;
-
-      let houseNo = "";
-      let route = "";
-      let sublocality = "";
-      let locality = "";
-      let state = "";
-      let postalCode = "";
-
-      components.forEach((comp) => {
-        if (comp.types.includes("street_number")) houseNo = comp.long_name;
-        if (comp.types.includes("route")) route = comp.long_name;
-        if (comp.types.includes("sublocality") || comp.types.includes("sublocality_level_1"))
-          sublocality = comp.long_name;
-        if (comp.types.includes("locality")) locality = comp.long_name;
-        if (comp.types.includes("administrative_area_level_1")) state = comp.long_name;
-        if (comp.types.includes("postal_code")) postalCode = comp.long_name;
-      });
-
-      const combinedAddress = [route, sublocality].filter(Boolean).join(", ");
-
-      // ---- USE THE FUNCTION HERE ----
-      fillReactInput("houseNo", houseNo);
-      fillReactInput("address", combinedAddress);
-      fillReactInput("city", locality);
-      fillReactInput("state", state);
-      fillReactInput("pincode", postalCode);
-      // -------------------------------
-
-    } catch (err) {
-      console.error("Error fetching geocode:", err);
-    }
-  });
-
-}
-
-window.addEventListener("load", () => {
-  autoDetectAddress();
-});
-
-</script>        
+         // -------- Fill inputs safely -------
+         const addressInput = document.querySelector("#address");
+         const cityInput = document.querySelector("#city");
+         const stateSelect = document.querySelector("#state");
+         const pinInput = document.querySelector("#pincode");
+         
+         // Build "House no, Street, Area/Colony"
+         const combinedAddress = [houseNo, street, sublocality]
+           .filter(Boolean)
+           .join(", ");
+         if (addressInput) addressInput.value = combinedAddress || "";
+         if (cityInput) cityInput.value = city;
+         if (stateSelect) stateSelect.value = state;
+         if (pinInput) pinInput.value = postalCode;       
+       
+       } catch (err) {
+         console.error("Error fetching address:", err);
+       }
+     }, () => {
+       alert("Unable to detect location. Please enable location services.");
+     });
+   }
+   
+   window.onload = autoDetectAddress;
+ </script>
+    
         <script>
 (async () => {
   const CREATE_ORDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order"; // change if needed
