@@ -68,17 +68,21 @@
          });
          
          // -------- Fill inputs safely --------
-         const houseInput = document.querySelector('input[placeholder="House no"]');
-         const addressInput = document.querySelector('input[placeholder="House number, street name"]');
-         const cityInput = document.querySelector('input[placeholder="City"]');
-         const stateSelect = document.querySelector('select');
-         const pinInput = document.querySelector('input[placeholder="123456"]');
+
+         // -------- Fill inputs safely -------
+         const addressInput = document.querySelector("#address");
+         const cityInput = document.querySelector("#city");
+         const stateSelect = document.querySelector("#state");
+         const pinInput = document.querySelector("#pincode");
          
-         if (houseInput) houseInput.value = houseNo || "";
-         if (addressInput) addressInput.value = `${street} ${sublocality}`.trim();
+         // Build "House no, Street, Area/Colony"
+         const combinedAddress = [houseNo, street, sublocality]
+           .filter(Boolean)
+           .join(", ");
+         if (addressInput) addressInput.value = combinedAddress || "";
          if (cityInput) cityInput.value = city;
          if (stateSelect) stateSelect.value = state;
-         if (pinInput) pinInput.value = postalCode;
+         if (pinInput) pinInput.value = postalCode;       
        
        } catch (err) {
          console.error("Error fetching address:", err);
