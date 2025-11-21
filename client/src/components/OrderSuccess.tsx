@@ -53,7 +53,7 @@ export default function OrderSuccess({
               data-testid="button-view-shopify"
             >
               <ExternalLink className="h-4 w-4" />
-              View in Shopify
+              Track your order
             </Button>
           )}
           <Button
