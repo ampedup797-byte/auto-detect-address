@@ -20,7 +20,7 @@
   </div>   
 
         <script>
-  // Run after page fully loaded so React inputs exist
+  // Run after the whole page (and React form) is loaded
   window.addEventListener("load", () => {
     autoDetectAddress().catch((err) =>
       console.error("autoDetectAddress error:", err)
@@ -39,12 +39,14 @@
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          // 👉 use your real API key here (this was in your old code)
+          // 👉 Use your real Google Maps API key here
           const apiKey = "AIzaSyCM_L3ma9CWW-3LFYZXbPr6ZFDGcj3xvA";
           const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
 
           const res = await fetch(url);
           const data = await res.json();
+
+          console.log("DEBUG geocode result:", data);
 
           if (!data.results || !data.results.length) {
             console.warn("No geocode results");
@@ -55,8 +57,8 @@
           const components = result.address_components;
 
           let houseNo = "";
-          let route = "";       // road name
-          let sublocality = ""; // colony / area
+          let route = "";       // road
+          let sublocality = ""; // area / colony
           let city = "";
           let state = "";
           let postalCode = "";
@@ -85,56 +87,47 @@
             }
           });
 
-          // 🔁 Fallback: sometimes Google does not send street_number
+          // 🔁 Fallback for house number: try first number in formatted address
           if (!houseNo && result.formatted_address) {
-            const match = result.formatted_address.match(/^\d+[A-Za-z0-9/\-]*/);
+            const match = result.formatted_address.match(/^\d+[A-Za-z0-9\/\-]*/);
             if (match) {
-              houseNo = match[0]; // e.g. "12" or "12A"
+              houseNo = match[0];
             }
           }
 
-          // ===== Fill your form fields =====
-          const houseInput =
-            document.querySelector("#houseNo") ||
-            document.querySelector('input[placeholder*="House"]');
+          // ===== Fill your React form inputs by ID =====
+          const houseInput = document.getElementById("houseNo");
+          const addressInput = document.getElementById("address");
+          const cityInput = document.getElementById("city");
+          const stateSelect = document.getElementById("state");
+          const pinInput = document.getElementById("pincode");
 
-          const addressInput =
-            document.querySelector("#address") ||
-            document.querySelector('input[placeholder="House number, street name"]');
-
-          const cityInput =
-            document.querySelector("#city") ||
-            document.querySelector('input[placeholder="City"]');
-
-          const stateSelect =
-            document.querySelector("#state") || document.querySelector("select");
-
-          const pinInput =
-            document.querySelector("#pincode") ||
-            document.querySelector('input[placeholder="123456"]');
-
-          // Street Address like: "Road Name, Vaishali Nagar"
+          // Address like: "Road Name, Colony"
           const combinedAddress = [route, sublocality].filter(Boolean).join(", ");
 
           if (houseInput && houseNo) {
             houseInput.value = houseNo;
           }
-
           if (addressInput && combinedAddress) {
             addressInput.value = combinedAddress;
           }
-
           if (cityInput && city) {
             cityInput.value = city;
           }
-
           if (stateSelect && state) {
             stateSelect.value = state;
           }
-
           if (pinInput && postalCode) {
             pinInput.value = postalCode;
           }
+
+          console.log("DEBUG filled:", {
+            houseNo,
+            combinedAddress,
+            city,
+            state,
+            postalCode,
+          });
         } catch (err) {
           console.error("Error fetching geocode:", err);
         }
@@ -144,9 +137,9 @@
       }
     );
   }
-</script>     
-
-
+</script>    
+        
+        
         <script>
 (async () => {
   const CREATE_ORDER_URL = "https://auto-detect-address.onrender.com/api/create-cod-order"; // change if needed
