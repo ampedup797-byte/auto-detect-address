@@ -253,35 +253,46 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             )}
           </div>
 
+
           <div>
             <Label htmlFor="state" className="text-sm font-medium">
               State <span className="text-destructive">*</span>
             </Label>
+            {/* Hidden input so auto-detect can fill it */}
+            <input
+              type="text"
+              id="state"
+              style={{ display: "none" }}
+              value={formData.state}
+              onChange={(e) => handleChange("state", e.target.value)}
+              />
+            
             <Select
               value={formData.state}
               onValueChange={(value) => handleChange("state", value)}
               disabled={isLoading}
-            >
+              >
               <SelectTrigger
-                id="state"
                 data-testid="select-state"
                 className={errors.state ? "border-destructive" : ""}
-              >
+                >
                 <SelectValue placeholder="Select State" />
               </SelectTrigger>
+              
               <SelectContent>
                 {INDIAN_STATES.map((state) => (
-                  <SelectItem key={state} value={state}>
-                    {state}
-                  </SelectItem>
-                ))}
+                <SelectItem key={state} value={state}>
+                  {state}
+                </SelectItem>
+              ))}
               </SelectContent>
             </Select>
+            
             {errors.state && (
-              <p className="text-sm text-destructive mt-1" data-testid="error-state">
-                {errors.state}
-              </p>
-            )}
+      <p className="text-sm text-destructive mt-1" data-testid="error-state">
+        {errors.state}
+      </p>
+    )}
           </div>
 
           <div>
