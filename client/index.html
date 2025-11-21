@@ -21,71 +21,73 @@
 
         <script>
   // Run after the whole page (and React form) is loaded
-  window.addEventListener("load", () => {
-    autoDetectAddress().catch((err) =>
-      console.error("autoDetectAddress error:", err)
-    );
-  });
-
-  async function autoDetectAddress() {
-    if (!navigator.geolocation) {
-      console.warn("Geolocation not supported");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-
-          // 👉 Use your real Google Maps API key here
-          const apiKey = "AIzaSyCM_L3ma9CWW-3LFYZXbPr6ZFDGcj3xvA";
-          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-
-          const res = await fetch(url);
-          const data = await res.json();
-
-          console.log("DEBUG geocode result:", data);
-
-          if (!data.results || !data.results.length) {
-            console.warn("No geocode results");
-            return;
-          }
-
-          const result = data.results[0];
-          const components = result.address_components;
-
-          let houseNo = "";
-          let route = "";       // road
-          let sublocality = ""; // area / colony
-          let city = "";
-          let state = "";
-          let postalCode = "";
-
-          components.forEach((comp) => {
-            if (comp.types.includes("street_number")) {
-              houseNo = comp.long_name;
-            }
-            if (comp.types.includes("route")) {
-              route = comp.long_name;
-            }
-            if (
-              comp.types.includes("sublocality") ||
-              comp.types.includes("sublocality_level_1")
-            ) {
-              sublocality = comp.long_name;
-            }
-            if (comp.types.includes("locality")) {
-              city = comp.long_name;
-            }
-            if (comp.types.includes("administrative_area_level_1")) {
-              state = comp.long_name;
-            }
-            if (comp.types.includes("postal_code")) {
-              postalCode = comp.long_name;
-            }
+          window.addEventListener("load", () => {
+            autoDetectAddress().catch((err) =>
+              console.error("autoDetectAddress error:", err)
+              );
           });
+          
+          async function autoDetectAddress() {
+            if (!navigator.geolocation) {
+              console.warn("Geolocation not supported");
+              return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+              async (pos) => {
+                try {
+                  const lat = pos.coords.latitude;
+                  const lng = pos.coords.longitude;
+                  
+                  // 👉 Use your real Google Maps API key her
+                  
+                  const apiKey = "AIzaSyCM_L3ma9CWW-3LFYZXbPr6ZFDGcj3xvA";
+                  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+                  
+                  const res = await fetch(url);
+                  const data = await res.json();
+                  
+                  console.log("DEBUG geocode result:", data);
+                  
+                  if (!data.results || !data.results.length) {
+                    console.warn("No geocode results");
+                    return;
+                  }
+                  
+                  const result = data.results[0];
+                  const components = result.address_components;
+                  
+                  let houseNo = "";
+                  let route = "";       // road
+                  let sublocality = ""; // area / colony
+                  let city = "";
+                  let state = "";
+                  let postalCode = "";
+                  
+                  components.forEach((comp) => {
+                    if (comp.types.includes("street_number")) {
+                      houseNo = comp.long_name;
+                    }
+                    if (comp.types.includes("route")) {
+                      route = comp.long_name;
+                    }
+                    
+                    if (
+                      comp.types.includes("sublocality") ||
+                      comp.types.includes("sublocality_level_1")
+                    ) {
+                      sublocality = comp.long_name;
+                    }
+                    if (comp.types.includes("locality")) {
+                      city = comp.long_name;
+                    }
+                    if (comp.types.includes("administrative_area_level_1")) {
+                      state = comp.long_name;
+                    }
+                    if (comp.types.includes("postal_code")) {
+                      postalCode = comp.long_name;
+                    }
+                  });
 
           // 🔁 Fallback for house number: try first number in formatted address
           if (!houseNo && result.formatted_address) {
