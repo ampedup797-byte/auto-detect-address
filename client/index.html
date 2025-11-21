@@ -37,7 +37,8 @@
          
          if (!data.results || !data.results[0]) return;
          
-         const components = data.results[0].address_components;
+         const results = data.results[0];
+         const components = result.address_components;
          
          let houseNo = "";
          let street = "";
@@ -45,6 +46,7 @@
          let city = "";
          let state = "";
          let postalCode = "";
+         const formattedAddrress = result.formatted_address || "";
          
          components.forEach((comp) => {
            if (comp.types.includes("street_number")) {
@@ -66,7 +68,14 @@
              postalCode = comp.long_name;
            }
          });
-         
+
+         // Fallback: try to extract house number from formatted_address
+         if (!houseNo && formattedAddress) {
+           const match = formattedAddress.match(/^\d+/);
+           if (match) {
+             houseNo = match[0]; // e.g. "12" from "12, Vaishali Nagar..."
+           }
+         }         
          // -------- Fill inputs safely --------
 
          // -------- Fill inputs safely -------
