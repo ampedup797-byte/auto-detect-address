@@ -18,7 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 phone, 
                 email, 
                 houseNo,
-                address, 
+                addressLine1, 
                 city, 
                 state, 
                 pincode, 
