@@ -128,17 +128,16 @@ const noteAttributes = [
           message: data.errors || "Failed to create order in Shopify" 
         });
       }
-     } catch (error) {
-  console.error("Error creating COD order:", error);
-
-  res.status(500).json({
+     } } catch (err) {
+  console.error("Error creating COD order:", err);
+  return res.status(500).json({
     success: false,
-    message: error.message || "Server crashed",
-    stack: error.stack,
-    receivedPayload: req.body   // 🔥 tells us EXACTLY what client sent
-  });    
-}
+    message: err.message || "Server error",
+    stack: err.stack,
+    receivedPayload: req.body || {}
   });
+} 
+});
 
   const httpServer = createServer(app);
 
