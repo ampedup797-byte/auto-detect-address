@@ -12,7 +12,72 @@ import {
 import { Card } from "@/components/ui/card";
 import { ShoppingBag, Loader2 } from "lucide-react";
 
-const detectAddress = () => {
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+];
+
+interface OrderFormProps {
+  onSubmit: (formData: FormData) => void;
+  isLoading?: boolean;
+}
+
+export interface FormData {
+  name: string;
+  phone: string;
+  email: string;
+  houseNo: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProps) {
+  const [formData, setFormData] = useState<FormData>({
+    name: "",
+    phone: "",
+    email: "",
+    houseNo: "",    
+    address: "",
+    city: "",
+    state: "",
+    pincode: "",
+  });
+
+  const [errors, setErrors] = useState<Partial<FormData>>({});
+
+  useEffect(() => {
+    detectAddress();
+}, []);
+
+  const detectAddress = () => {
   if (!navigator.geolocation) {
     console.warn("Geolocation not supported");
     return;
@@ -85,68 +150,6 @@ const detectAddress = () => {
     }
   );
 };
-
-
-const INDIAN_STATES = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-];
-
-interface OrderFormProps {
-  onSubmit: (formData: FormData) => void;
-  isLoading?: boolean;
-}
-
-export interface FormData {
-  name: string;
-  phone: string;
-  email: string;
-  houseNo: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-}
-
-export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProps) {
-  const [formData, setFormData] = useState<FormData>({
-    name: "",
-    phone: "",
-    email: "",
-    houseNo: "",    
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-  });
-
-  const [errors, setErrors] = useState<Partial<FormData>>({});
 
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
