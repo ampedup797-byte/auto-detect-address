@@ -31,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 const noteAttributes = [
   { name: "NAME", value: name || "" },
   { name: "Phone number", value: phone || "" },
-  { name: "Road name/ Area /colony", value: addressLine1 || "" },
+  { name: "Road name/ Area /colony", value: address || "" },
   { name: "House no", value: houseNo || "" },
   { name: "City", value: city || "" },
   { name: "State", value: state || "" },
