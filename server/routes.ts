@@ -128,7 +128,7 @@ const noteAttributes = [
           message: data.errors || "Failed to create order in Shopify" 
         });
       }
-     } } catch (err) {
+      } catch (err) {
   console.error("Error creating COD order:", err);
   return res.status(500).json({
     success: false,
