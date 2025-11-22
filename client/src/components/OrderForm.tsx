@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,81 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { ShoppingBag, Loader2 } from "lucide-react";
+
+const detectAddress = () => {
+  if (!navigator.geolocation) {
+    console.warn("Geolocation not supported");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.results || !data.results[0]) {
+          console.warn("No geocode results");
+          return;
+        }
+
+        const components = data.results[0].address_components;
+
+        let houseNo = "";
+        let road = "";
+        let city = "";
+        let state = "";
+        let postalCode = "";
+
+        components.forEach((c) => {
+          if (c.types.includes("street_number")) houseNo = c.long_name;
+          if (c.types.includes("premise") && !houseNo) houseNo = c.long_name;
+
+          if (c.types.includes("route")) road = c.long_name;
+          if (c.types.includes("sublocality_level_1"))
+            road = road ? `${road}, ${c.long_name}` : c.long_name;
+          if (c.types.includes("sublocality_level_2"))
+            road = road ? `${road}, ${c.long_name}` : c.long_name;
+          if (c.types.includes("neighborhood"))
+            road = road ? `${road}, ${c.long_name}` : c.long_name;
+
+          if (c.types.includes("locality")) city = c.long_name;
+          if (c.types.includes("administrative_area_level_1")) state = c.long_name;
+          if (c.types.includes("postal_code")) postalCode = c.long_name;
+        });
+
+        // update React state directly ✅
+        setFormData((prev) => ({
+          ...prev,
+          houseNo: houseNo || prev.houseNo,
+          address: road || prev.address,
+          city: city || prev.city,
+          state: state || prev.state,
+          pincode: postalCode || prev.pincode,
+        }));
+
+        console.log("DEBUG filled via React:", {
+          houseNo,
+          road,
+          city,
+          state,
+          postalCode,
+        });
+      } catch (err) {
+        console.error("Error fetching address:", err);
+      }
+    },
+    () => {
+      console.warn("Location permission denied");
+    }
+  );
+};
+
 
 const INDIAN_STATES = [
   "Andhra Pradesh",
