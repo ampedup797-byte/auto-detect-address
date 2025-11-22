@@ -215,7 +215,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           <Input
             id="name"
             data-testid="input-name"
-            placeholder="Enter customer's full name"
+            placeholder="Enter Your full name"
             value={formData.name}
             onChange={(e) => handleChange("name", e.target.value)}
             className={errors.name ? "border-destructive" : ""}
@@ -256,7 +256,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             id="email"
             type="email"
             data-testid="input-email"
-            placeholder="customer@example.com"
+            placeholder="your@gmail.com"
             value={formData.email}
             onChange={(e) => handleChange("email", e.target.value)}
             className={errors.email ? "border-destructive" : ""}
