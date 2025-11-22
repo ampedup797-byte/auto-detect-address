@@ -54,7 +54,13 @@
     const pincode = (document.querySelector('input[name="pincode"]') || {}).value || '';
 
     const payload = {
-      name, phone, email, address, city, state, pincode,
+      name,
+      phone,
+      email,
+      addressLine1: address,      
+      city,
+      state,
+      pincode,
       product_id: String(product_id),
       size: String(size)
     };
