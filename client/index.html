@@ -48,16 +48,21 @@
     const name = (document.querySelector('input[name="name"]') || {}).value || 'Test User';
     const phone = (document.querySelector('input[name="phone"]') || {}).value || '9999999999';
     const email = (document.querySelector('input[name="email"]') || {}).value || '';
-    const address = (document.querySelector('textarea[name="address"]') || {}).value || '';
+    const address = (document.querySelector('#address') || {}).value || '';
+    //const address = (document.querySelector('textarea[name="address"]') || {}).value || '';
     const city = (document.querySelector('input[name="city"]') || {}).value || '';
     const state = (document.querySelector('input[name="state"]') || {}).value || '';
     const pincode = (document.querySelector('input[name="pincode"]') || {}).value || '';
-
+    const houseNo = (document.querySelector('#houseNo') || {}).value || "";
+    const street = (document.querySelector('#address') || {}).value || "";
+    
+    const addressLine1 = `${houseNo}, ${street}`.trim();
+    
     const payload = {
       name,
       phone,
       email,
-      addressLine1: address,      
+      addressLine1,       
       city,
       state,
       pincode,
