@@ -140,6 +140,25 @@ const noteAttributes = [
 } 
 });
 
+  // DEBUG: safe env checker — add this temporarily (remove after debugging)
+app.get("/api/_debug_env", (req, res) => {
+  try {
+    const token = process.env.SHOPIFY_ACCESS_TOKEN;
+    const store = process.env.SHOPIFY_STORE_URL;
+
+    res.json({
+      hasToken: !!token,
+      tokenMasked: token ? `${token.slice(0,8)}...${token.slice(-6)}` : null,
+      storeUrl: store || null,
+      nodeEnv: process.env.NODE_ENV || null,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+  
   const httpServer = createServer(app);
 
   return httpServer;
