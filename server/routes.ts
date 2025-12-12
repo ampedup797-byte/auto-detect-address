@@ -6,105 +6,104 @@ const variantsMap = require("../variants_map.json");
 const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
   app.post("/api/create-cod-order", async (req, res) => {
     try {
-        // ---------------- DEBUG LOGS START ----------------
-        console.log("=== DEBUG /api/create-cod-order START ===");
-        console.log("DEBUG req.body:", req.body);
-        console.log("DEBUG keys req.body:", Object.keys(req.body || {}));
-        // ---------------- DEBUG LOGS END ------------------
 
-        const { name,
-                phone, 
-                email, 
-                houseNo,
-                addressLine1, 
-                address,
-                city, 
-                state, 
-                pincode, 
-                product_id,  
-                size 
-                } = req.body || {};
+      /* --------------------------------------------------------
+         🔥 SUPER DEBUGGER — SHOW EVERYTHING
+      ---------------------------------------------------------*/
+      console.log("======== NEW COD ORDER REQUEST ========");
+      console.log("FULL req.body:", JSON.stringify(req.body, null, 2));
+      console.log("ENV CHECK -> token exists?", !!process.env.SHOPIFY_ACCESS_TOKEN);
+      console.log("ENV CHECK -> token preview:", process.env.SHOPIFY_ACCESS_TOKEN ? process.env.SHOPIFY_ACCESS_TOKEN.slice(0,8) + "..." : "NO TOKEN");
+      console.log("ENV CHECK -> store URL:", SHOPIFY_STORE_URL);
+      console.log("========================================");
 
+      const {
+        name,
+        phone,
+        email,
+        houseNo,
+        addressLine1,
+        address,
+        city,
+        state,
+        pincode,
+        product_id,
+        size
+      } = req.body || {};
 
-      // Extra details shown in Shopify under "Additional details"
-const noteAttributes = [
-  { name: "NAME", value: name || "" },
-  { name: "Phone number", value: phone || "" },
-  { name: "Road name/ Area /colony", value: address || "" },
-  { name: "House no", value: houseNo || "" },
-  { name: "City", value: city || "" },
-  { name: "State", value: state || "" },
-  { name: "zip_code", value: pincode || "" },
-  { name: "Size", value: size || "" },
-  { name: "Email", value: email || "" },
-];      
-      //const { product_id, size } = req.body;
-      // convert to string because JSON keys are strings
+      const noteAttributes = [
+        { name: "NAME", value: name || "" },
+        { name: "Phone number", value: phone || "" },
+        { name: "Road name/ Area /colony", value: address || "" },
+        { name: "House no", value: houseNo || "" },
+        { name: "City", value: city || "" },
+        { name: "State", value: state || "" },
+        { name: "zip_code", value: pincode || "" },
+        { name: "Size", value: size || "" },
+        { name: "Email", value: email || "" },
+      ];
+
       const pid = String(product_id);
       const sizeKey = String(size);
 
-      // ---------- DEBUG pid & size ----------
-      console.log("DEBUG pid:", pid);
-      console.log("DEBUG sizeKey:", sizeKey);
-      console.log("DEBUG variantsMap has pid?:", !!variantsMap[pid]);
-      console.log("DEBUG variantsMap entry:", variantsMap[pid]);      
-      // find variant id from variants_map.json
-      
       const variantId =
         variantsMap[pid]?.variants[sizeKey] ||
         variantsMap[pid]?.variants[sizeKey.toUpperCase()] ||
         variantsMap[pid]?.variants[sizeKey.toLowerCase()];
-      
+
       if (!variantId) {
         return res.status(400).json({
           success: false,
           message: `Variant not found for product_id ${pid} and size ${sizeKey}`
         });
       }
+
       if (!process.env.SHOPIFY_ACCESS_TOKEN) {
-        return res.status(500).json({ 
-          success: false, 
-          message: "Shopify access token not configured" 
+        return res.status(500).json({
+          success: false,
+          message: "Shopify access token missing"
         });
       }
 
       const orderData = {
         order: {
           line_items: [
-            {
-              variant_id: Number(variantId),
-              quantity: 1
-            }
+            { variant_id: Number(variantId), quantity: 1 }
           ],
-            customer: {
+          customer: {
             first_name: name,
-            email: email,
-            phone: phone,
+            email,
+            phone
           },
           billing_address: {
             address1: addressLine1,
-            city: city,
+            city,
             province: state,
             zip: pincode,
-            country: "India",
+            country: "India"
           },
           shipping_address: {
             address1: addressLine1,
-            city: city,
+            city,
             province: state,
             zip: pincode,
-            country: "India",
+            country: "India"
           },
           financial_status: "pending",
           tags: ["COD"],
-
-          note_attributes: noteAttributes,
-        },
+          note_attributes: noteAttributes
+        }
       };
 
-      const response = await fetch(`${SHOPIFY_STORE_URL}/admin/api/2024-10/orders.json`, {
+      console.log("Sending orderData:", JSON.stringify(orderData, null, 2));
+
+      /* --------------------------------------------------------
+         🔥 SHOPIFY RAW DEBUG RESPONSE BLOCK
+      ---------------------------------------------------------*/
+      const shopifyRes = await fetch(`${SHOPIFY_STORE_URL}/admin/api/2024-10/orders.json`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -113,53 +112,65 @@ const noteAttributes = [
         body: JSON.stringify(orderData),
       });
 
-      const data = await response.json() as any;
-      console.log("Shopify Response:", data);
+      const raw = await shopifyRes.text();
 
-      if (response.ok && data.order) {
-        res.json({ 
-          success: true, 
-          message: "COD Order created successfully!", 
-          order_id: data.order.id,
-          order_number: data.order.order_number 
-        });
-      } else {
-        res.status(400).json({ 
-          success: false, 
-          message: data.errors || "Failed to create order in Shopify" 
+      console.log("==== SHOPIFY RAW RESPONSE START ====");
+      console.log("STATUS:", shopifyRes.status);
+      console.log("BODY:", raw);
+      console.log("==== SHOPIFY RAW RESPONSE END ====");
+
+      let shopifyJson = null;
+      try {
+        shopifyJson = JSON.parse(raw);
+      } catch (_) {}
+
+      if (!shopifyRes.ok) {
+        return res.status(400).json({
+          success: false,
+          message: "Shopify rejected order",
+          status: shopifyRes.status,
+          shopifyResponse: raw
         });
       }
-      } catch (err) {
-  console.error("Error creating COD order:", err);
-  return res.status(500).json({
-    success: false,
-    message: err.message || "Server error",
-    stack: err.stack,
-    receivedPayload: req.body || {}
+
+      return res.json({
+        success: true,
+        message: "COD Order created!",
+        shopify: shopifyJson
+      });
+
+    } catch (err: any) {
+      console.error("FATAL BACKEND ERROR:", err);
+
+      return res.status(500).json({
+        success: false,
+        message: err.message || "Server crashed",
+        stack: err.stack,
+        receivedPayload: req.body
+      });
+    }
   });
-} 
-});
 
-  // DEBUG: safe env checker — add this temporarily (remove after debugging)
-app.get("/api/_debug_env", (req, res) => {
-  try {
-    const token = process.env.SHOPIFY_ACCESS_TOKEN;
-    const store = process.env.SHOPIFY_STORE_URL;
+  /* --------------------------------------------------------
+     DEBUG ENDPOINT (OPTIONAL)
+  ---------------------------------------------------------*/
+  app.get("/api/_debug_env", (req, res) => {
+    try {
+      const token = process.env.SHOPIFY_ACCESS_TOKEN;
+      const store = SHOPIFY_STORE_URL;
 
-    res.json({
-      hasToken: !!token,
-      tokenMasked: token ? `${token.slice(0,8)}...${token.slice(-6)}` : null,
-      storeUrl: store || null,
-      nodeEnv: process.env.NODE_ENV || null,
-      timestamp: new Date().toISOString()
-    });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
+      res.json({
+        hasToken: !!token,
+        tokenMasked: token ? `${token.slice(0, 8)} ... ${token.slice(-6)}` : null,
+        storeUrl: store,
+        nodeEnv: process.env.NODE_ENV || null,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
 
-  
   const httpServer = createServer(app);
-
   return httpServer;
 }
