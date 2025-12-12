@@ -73,97 +73,70 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
-  // load Google Maps JS library once
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-    if (!key) {
-      console.warn("Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local for Maps JS API");
-      // still call detectAddress which will warn about missing google object
-    }
-    // if script already present, skip adding
-    if (typeof window !== "undefined" && !(window as any).google) {
-      const id = "google-maps-js";
-      if (!document.getElementById(id)) {
-        const s = document.createElement("script");
-        s.id = id;
-        s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
-        s.async = true;
-        s.defer = true;
-        s.onload = () => {
-          console.log("Google Maps JS loaded");
-        };
-        s.onerror = () => {
-          console.error("Failed to load Google Maps JS");
-        };
-        document.head.appendChild(s);
-      }
-    }
-    // start detection once (will wait for script if needed)
     detectAddress();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- helper functions ----------
-  function getComponent(components: any[], type: string) {
-    const comp = components.find((c) => c.types.includes(type));
-    return comp ? comp.long_name : "";
+  //
+  // ---------- Utility: build Meesho-style human address ----------
+  //
+  function component(components: any[], type: string) {
+    const c = components.find((x) => x.types && x.types.includes(type));
+    return c ? c.long_name : "";
   }
 
-  function formatAddress(components: any[], placeResult?: any) {
-    const house =
-      getComponent(components, "subpremise") ||
-      getComponent(components, "premise") ||
-      getComponent(components, "street_number");
+  function buildMeeshoAddress(components: any[]) {
+    // Extract useful bits
+    const subpremise = component(components, "subpremise"); // e.g., "3rd Floor"
+    const premise = component(components, "premise"); // building name
+    const streetNumber = component(components, "street_number");
+    const route = component(components, "route"); // street
+    // area/neighbourhood
+    const sublocality1 = component(components, "sublocality_level_1") || component(components, "sublocality");
+    const sublocality2 = component(components, "sublocality_level_2");
+    const neighborhood = component(components, "neighborhood");
+    const area = sublocality1 || sublocality2 || neighborhood || "";
 
-    const street = getComponent(components, "route");
+    const locality = component(components, "locality") || component(components, "administrative_area_level_2"); // city
+    const state = component(components, "administrative_area_level_1");
+    const postal_code = component(components, "postal_code");
 
-    const area =
-      getComponent(components, "sublocality_level_1") ||
-      getComponent(components, "sublocality") ||
-      getComponent(components, "neighborhood");
+    // Build line 1 similar to Meesho:
+    // Prefer: Premise (building) + subpremise (floor/flat) + streetNumber/street + area
+    const partsLine1: string[] = [];
 
-    const city =
-      getComponent(components, "locality") ||
-      getComponent(components, "administrative_area_level_2");
+    if (premise) partsLine1.push(premise); // "Sai Residency"
+    // If premise not exists, try combining street number with street
+    if (subpremise) partsLine1.push(subpremise); // "3rd Floor"
+    if (!premise && streetNumber) partsLine1.push(streetNumber); // "Flat 203" or "3"
+    if (route) partsLine1.push(route); // "Hitech City Road"
+    // Add area near end of line 1 if it fits
+    if (area) partsLine1.push(area); // "Madhapur"
 
-    const state =
-      getComponent(components, "administrative_area_level_1");
+    const line1 = partsLine1.join(", ");
 
-    const pincode = getComponent(components, "postal_code");
-
-    const placeName = placeResult?.name || "";
-
-    const line1Parts: string[] = [];
-    if (placeName) line1Parts.push(placeName);
-    if (house) line1Parts.push(house);
-    if (street) line1Parts.push(street);
-
+    // Build line2: City, State - PIN
     const line2Parts: string[] = [];
-    if (area) line2Parts.push(area);
-    if (city) line2Parts.push(city);
+    if (locality) line2Parts.push(locality);
     if (state) line2Parts.push(state);
-    if (pincode) line2Parts.push(pincode);
 
-    const fullAddress =
-      (line1Parts.join(", ") || "") +
-      (line2Parts.length ? (line1Parts.length ? ", " : "") + line2Parts.join(", ") : "");
+    const line2 = line2Parts.join(", ") + (postal_code ? ` - ${postal_code}` : "");
 
     return {
-      fullAddress,
-      house,
-      street,
-      area,
-      city,
-      state,
-      pincode,
-      landmark: placeName,
+      line1: line1 || (route || area || ""),
+      line2: line2.trim() || "",
+      houseNo: premise || subpremise || streetNumber || "",
+      street: route || area || "",
+      city: locality || "",
+      state: state || "",
+      pincode: postal_code || "",
     };
   }
 
-  /**
-   * detectAddress - uses Maps JS API (Geocoder + PlacesService)
-   * No CORS errors because JS SDK is built for browser usage.
-   */
+  //
+  // ---------- detectAddress (Meesho-style, client-only, no extra files) ----------
+  //
   const detectAddress = () => {
     if (!navigator.geolocation) {
       console.warn("Geolocation not supported");
@@ -176,104 +149,69 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          // Wait up to ~3 seconds for window.google to be ready (if script is still loading)
-          const waitForGoogle = () =>
-            new Promise<void>((resolve) => {
-              const start = Date.now();
-              const interval = setInterval(() => {
-                if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Geocoder) {
-                  clearInterval(interval);
-                  resolve();
-                } else if (Date.now() - start > 3000) {
-                  clearInterval(interval);
-                  resolve(); // resolve anyway; fallback will try to use JS fetch approach (but likely fail due to CORS)
-                }
-              }, 150);
-            });
+          // ======= PUT YOUR KEY HERE (client-side) =======
+          // If you want safer approach later, we can switch to server proxy.
+          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace this with your key (or keep using env)
+          // ==============================================
 
-          await waitForGoogle();
-
-          // If google is available, use Geocoder + PlacesService (preferred)
-          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Geocoder) {
-            const geocoder = new (window as any).google.maps.Geocoder();
-            geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
-              if (status === "OK" && results && results.length) {
-                const best = results[0];
-                const components = best.address_components || [];
-                const placeId = best.place_id;
-
-                // If we have a placeId, fetch place details for place name/landmark
-                if (placeId && (window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
-                  // PlacesService needs a map or element — create offscreen div
-                  const offDiv = document.createElement("div");
-                  const map = new (window as any).google.maps.Map(offDiv);
-                  const service = new (window as any).google.maps.places.PlacesService(map);
-                  service.getDetails(
-                    { placeId, fields: ["name", "address_components", "formatted_address"] },
-                    (placeResult: any, placeStatus: string) => {
-                      const formatted = formatAddress(components, placeResult);
-                      setFormData((prev) => ({
-                        ...prev,
-                        houseNo: formatted.house || prev.houseNo,
-                        address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
-                        city: formatted.city || prev.city,
-                        state: formatted.state || prev.state,
-                        pincode: formatted.pincode || prev.pincode,
-                      }));
-                      console.log("Auto-filled via Google Maps JS (places):", formatted);
-                    }
-                  );
-                } else {
-                  // No placeId or Places not available — fallback to using geocode components only
-                  const formatted = formatAddress(components, null);
-                  setFormData((prev) => ({
-                    ...prev,
-                    houseNo: formatted.house || prev.houseNo,
-                    address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
-                    city: formatted.city || prev.city,
-                    state: formatted.state || prev.state,
-                    pincode: formatted.pincode || prev.pincode,
-                  }));
-                  console.log("Auto-filled via Google Maps JS (geocode only):", formatted);
-                }
-                return;
-              }
-
-              console.warn("Geocoder failed or returned no results:", status, results);
-            });
+          if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+            console.warn("Google API key missing in detectAddress. Replace apiKey with your key.");
             return;
           }
 
-          // If google SDK not available (script failed to load), fallback to your original fetch geocode.
-          // NOTE: calling maps.googleapis.com directly from browser may hit CORS -> might fail.
-          console.warn("Google Maps JS not available — falling back to direct web service (may be blocked by CORS).");
+          // ask rooftop-level accuracy to prefer exact addresses
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&key=${apiKey}`;
 
-          const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-          if (!apiKey) {
-            console.warn("No API key found for fallback direct fetch.");
+          const res = await fetch(url);
+          if (!res.ok) {
+            console.warn("Geocode HTTP error", res.status, await res.text());
+            return;
+          }
+          const data = await res.json();
+
+          if (!data.results || data.results.length === 0) {
+            console.warn("No geocode results");
             return;
           }
 
-          const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&result_type=street_address&key=${apiKey}`;
-          const resp = await fetch(geoUrl);
-          const data = await resp.json();
-          if (!data.results || !data.results[0]) {
-            console.warn("No geocode results from fallback fetch");
-            return;
+          // Prefer the most specific result (0). If that doesn't contain postal code, try next results.
+          let chosenResult = data.results[0];
+          // If first result lacks postal_code, try to find one that has postal_code
+          if (!chosenResult.address_components.some((c: any) => c.types.includes("postal_code"))) {
+            const found = data.results.find((r: any) =>
+              r.address_components && r.address_components.some((c: any) => c.types.includes("postal_code"))
+            );
+            if (found) chosenResult = found;
           }
-          const components = data.results[0].address_components || [];
-          const formatted = formatAddress(components, null);
+
+          const components = chosenResult.address_components || [];
+
+          // Build Meesho style address
+          const formatted = buildMeeshoAddress(components);
+
+          // Compose final single-line address (for your Address input)
+          // We'll put `line1` (which is building/floor/street/area) into `address`
+          // And keep houseNo separate (building name or flat/floor)
+          const displayAddress = formatted.line1;
+          const displayCity = formatted.city;
+          const displayState = formatted.state;
+          const displayPin = formatted.pincode;
+
           setFormData((prev) => ({
             ...prev,
-            houseNo: formatted.house || prev.houseNo,
-            address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
-            city: formatted.city || prev.city,
-            state: formatted.state || prev.state,
-            pincode: formatted.pincode || prev.pincode,
+            houseNo: formatted.houseNo || prev.houseNo,
+            address: displayAddress || prev.address,
+            city: displayCity || prev.city,
+            state: displayState || prev.state,
+            pincode: displayPin || prev.pincode,
           }));
-          console.log("Auto-filled via fallback fetch:", formatted);
+
+          // Log full two-line format so you can see
+          console.log("Auto-filled Meesho-style address:");
+          console.log(formatted.line1);
+          console.log(formatted.line2);
         } catch (err) {
-          console.error("Error detecting address:", err);
+          console.error("Error fetching address:", err);
         }
       },
       (err) => {
