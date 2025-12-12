@@ -79,63 +79,88 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
   }, []);
 
   //
-  // ---------- Utility: build Meesho-style human address ----------
+  // ---------- Improved Meesho-style formatter (REPLACED) ----------
   //
+
   function component(components: any[], type: string) {
     const c = components.find((x) => x.types && x.types.includes(type));
     return c ? c.long_name : "";
   }
 
+  /**
+   * Improved Meesho-like formatter
+   * - prefer administrative_area_level_2 (district) or postal_town as city if 'locality' is very small
+   * - build houseNo by combining premise/subpremise/street_number
+   * - build a fuller Road/Area line including neighborhood, sublocality, district
+   */
   function buildMeeshoAddress(components: any[]) {
-    // Extract useful bits
-    const subpremise = component(components, "subpremise"); // e.g., "3rd Floor"
-    const premise = component(components, "premise"); // building name
-    const streetNumber = component(components, "street_number");
-    const route = component(components, "route"); // street
-    // area/neighbourhood
-    const sublocality1 = component(components, "sublocality_level_1") || component(components, "sublocality");
-    const sublocality2 = component(components, "sublocality_level_2");
-    const neighborhood = component(components, "neighborhood");
-    const area = sublocality1 || sublocality2 || neighborhood || "";
+    const get = (t: string) => component(components, t);
 
-    const locality = component(components, "locality") || component(components, "administrative_area_level_2"); // city
-    const state = component(components, "administrative_area_level_1");
-    const postal_code = component(components, "postal_code");
+    const subpremise = get("subpremise"); // e.g., "3rd Floor" or flat no
+    const premise = get("premise"); // building name
+    const streetNumber = get("street_number"); // e.g., "83"
+    const route = get("route"); // street name
+    const sublocality1 = get("sublocality_level_1") || get("sublocality");
+    const sublocality2 = get("sublocality_level_2");
+    const neighborhood = get("neighborhood");
+    const postal_town = get("postal_town"); // sometimes useful
+    const locality = get("locality"); // often small locality like Champapet
+    const adminArea2 = get("administrative_area_level_2"); // district (Hyderabad)
+    const state = get("administrative_area_level_1");
+    const postal_code = get("postal_code");
 
-    // Build line 1 similar to Meesho:
-    // Prefer: Premise (building) + subpremise (floor/flat) + streetNumber/street + area
-    const partsLine1: string[] = [];
+    // === Decide city ===
+    const smallLocality =
+      locality &&
+      locality.length < 18 &&
+      /colony|nagar|village|chowk|pet|colony|gaon|gudem|peta|pet/i.test(locality);
+    const city = (!locality || smallLocality) ? (postal_town || adminArea2 || locality) : (locality || adminArea2 || postal_town);
 
-    if (premise) partsLine1.push(premise); // "Sai Residency"
-    // If premise not exists, try combining street number with street
-    if (subpremise) partsLine1.push(subpremise); // "3rd Floor"
-    if (!premise && streetNumber) partsLine1.push(streetNumber); // "Flat 203" or "3"
-    if (route) partsLine1.push(route); // "Hitech City Road"
-    // Add area near end of line 1 if it fits
-    if (area) partsLine1.push(area); // "Madhapur"
+    // === Build houseNo ===
+    const houseParts: string[] = [];
+    if (premise) houseParts.push(premise); // building
+    if (subpremise) houseParts.push(subpremise); // floor/flat
+    if (!premise && streetNumber) houseParts.push(streetNumber); // if no building, include street no
+    if (premise && streetNumber) {
+      if (!premise.includes(streetNumber)) houseParts.push(streetNumber);
+    }
+    const houseNo = houseParts.join("/"); // e.g., "17-1-382/P/83" or "Sai Residency/3rd Floor/83"
 
-    const line1 = partsLine1.join(", ");
+    // === Build Road/Area line (line1 for "address" input) ===
+    const roadParts: string[] = [];
+    if (route) roadParts.push(route);
+    if (sublocality1) roadParts.push(sublocality1);
+    if (sublocality2 && !roadParts.includes(sublocality2)) roadParts.push(sublocality2);
+    if (neighborhood && !roadParts.includes(neighborhood)) roadParts.push(neighborhood);
 
-    // Build line2: City, State - PIN
+    if (adminArea2 && !roadParts.includes(adminArea2) && adminArea2 !== city) {
+      roadParts.push(adminArea2);
+    }
+
+    let roadLine = roadParts.join(", ");
+    if (!roadLine) {
+      if (premise) roadLine = premise;
+      else roadLine = locality || adminArea2 || "";
+    }
+
     const line2Parts: string[] = [];
-    if (locality) line2Parts.push(locality);
+    if (city) line2Parts.push(city);
     if (state) line2Parts.push(state);
-
     const line2 = line2Parts.join(", ") + (postal_code ? ` - ${postal_code}` : "");
 
     return {
-      line1: line1 || (route || area || ""),
-      line2: line2.trim() || "",
-      houseNo: premise || subpremise || streetNumber || "",
-      street: route || area || "",
-      city: locality || "",
+      line1: roadLine.trim(),
+      line2: line2.trim(),
+      houseNo: houseNo || premise || subpremise || streetNumber || "",
+      street: route || roadLine || "",
+      city: city || "",
       state: state || "",
       pincode: postal_code || "",
     };
   }
 
   //
-  // ---------- detectAddress (Meesho-style, client-only, no extra files) ----------
+  // ---------- detectAddress (Meesho-style, client-only) ----------
   //
   const detectAddress = () => {
     if (!navigator.geolocation) {
@@ -150,8 +175,8 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           const lng = pos.coords.longitude;
 
           // ======= PUT YOUR KEY HERE (client-side) =======
-          // If you want safer approach later, we can switch to server proxy.
-          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace this with your key (or keep using env)
+          // Replace with your real key or keep current manual method
+          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace
           // ==============================================
 
           if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
@@ -159,7 +184,6 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             return;
           }
 
-          // ask rooftop-level accuracy to prefer exact addresses
           const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&key=${apiKey}`;
 
           const res = await fetch(url);
@@ -174,9 +198,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             return;
           }
 
-          // Prefer the most specific result (0). If that doesn't contain postal code, try next results.
           let chosenResult = data.results[0];
-          // If first result lacks postal_code, try to find one that has postal_code
           if (!chosenResult.address_components.some((c: any) => c.types.includes("postal_code"))) {
             const found = data.results.find((r: any) =>
               r.address_components && r.address_components.some((c: any) => c.types.includes("postal_code"))
@@ -186,17 +208,15 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
           const components = chosenResult.address_components || [];
 
-          // Build Meesho style address
           const formatted = buildMeeshoAddress(components);
 
-          // Compose final single-line address (for your Address input)
-          // We'll put `line1` (which is building/floor/street/area) into `address`
-          // And keep houseNo separate (building name or flat/floor)
           const displayAddress = formatted.line1;
           const displayCity = formatted.city;
           const displayState = formatted.state;
           const displayPin = formatted.pincode;
 
+          // If houseNo has slashes like "premise/subpremise/number" we want to put number part into house field
+          // Keep as-is for now (Meesho often shows houseNo as 17-1-382/P/83)
           setFormData((prev) => ({
             ...prev,
             houseNo: formatted.houseNo || prev.houseNo,
@@ -206,7 +226,6 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             pincode: displayPin || prev.pincode,
           }));
 
-          // Log full two-line format so you can see
           console.log("Auto-filled Meesho-style address:");
           console.log(formatted.line1);
           console.log(formatted.line2);
@@ -494,3 +513,24 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     </Card>
   );
 }
+
+
+    
+
+       
+
+     
+     
+ 
+
+
+      
+         
+        
+           
+        
+         
+             
+             
+            
+          
