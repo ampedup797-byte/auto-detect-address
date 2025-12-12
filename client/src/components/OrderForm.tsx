@@ -79,7 +79,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
   }, []);
 
   //
-  // ---------- Improved Meesho-style formatter (REPLACED) ----------
+  // ---------- Formatter that forces small-locality into address and big-city into city ----------
   //
 
   function component(components: any[], type: string) {
@@ -88,61 +88,60 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
   }
 
   /**
-   * Improved Meesho-like formatter
-   * - prefer administrative_area_level_2 (district) or postal_town as city if 'locality' is very small
-   * - build houseNo by combining premise/subpremise/street_number
-   * - build a fuller Road/Area line including neighborhood, sublocality, district
+   * Force district/adminArea2 (e.g., Hyderabad) into the city field,
+   * and push small locality (Champapet / Vaishali Nagar) into the road/area line.
    */
   function buildMeeshoAddress(components: any[]) {
     const get = (t: string) => component(components, t);
 
-    const subpremise = get("subpremise"); // e.g., "3rd Floor" or flat no
+    const subpremise = get("subpremise"); // floor/flat
     const premise = get("premise"); // building name
-    const streetNumber = get("street_number"); // e.g., "83"
-    const route = get("route"); // street name
+    const streetNumber = get("street_number");
+    const route = get("route"); // street
     const sublocality1 = get("sublocality_level_1") || get("sublocality");
     const sublocality2 = get("sublocality_level_2");
     const neighborhood = get("neighborhood");
-    const postal_town = get("postal_town"); // sometimes useful
-    const locality = get("locality"); // often small locality like Champapet
+    const postal_town = get("postal_town");
+    const locality = get("locality"); // small area like Champapet
     const adminArea2 = get("administrative_area_level_2"); // district (Hyderabad)
     const state = get("administrative_area_level_1");
     const postal_code = get("postal_code");
 
-    // === Decide city ===
-    const smallLocality =
-      locality &&
-      locality.length < 18 &&
-      /colony|nagar|village|chowk|pet|colony|gaon|gudem|peta|pet/i.test(locality);
-    const city = (!locality || smallLocality) ? (postal_town || adminArea2 || locality) : (locality || adminArea2 || postal_town);
+    // === Decide city: prefer adminArea2 (district) or postal_town.
+    // This forces 'Hyderabad' as city even if locality is Champapet.
+    const city = adminArea2 || postal_town || locality || "";
 
-    // === Build houseNo ===
+    // === Build houseNo: building/flat/number joined with '/'
     const houseParts: string[] = [];
-    if (premise) houseParts.push(premise); // building
-    if (subpremise) houseParts.push(subpremise); // floor/flat
-    if (!premise && streetNumber) houseParts.push(streetNumber); // if no building, include street no
-    if (premise && streetNumber) {
-      if (!premise.includes(streetNumber)) houseParts.push(streetNumber);
-    }
-    const houseNo = houseParts.join("/"); // e.g., "17-1-382/P/83" or "Sai Residency/3rd Floor/83"
+    if (premise) houseParts.push(premise); // building name
+    if (subpremise) houseParts.push(subpremise); // flat/floor
+    // always include streetNumber if present (helps match Meesho)
+    if (streetNumber) houseParts.push(streetNumber);
+    // If premise contains number already, duplication check isn't strict — this is fine.
+    const houseNo = houseParts.filter(Boolean).join("/"); // e.g., "17-1-382/P/83"
 
-    // === Build Road/Area line (line1 for "address" input) ===
+    // === Build Road/Area line (include locality here)
+    // Road line priority: route, sublocality1, sublocality2, neighborhood, locality, adminArea2 (optional)
     const roadParts: string[] = [];
     if (route) roadParts.push(route);
     if (sublocality1) roadParts.push(sublocality1);
     if (sublocality2 && !roadParts.includes(sublocality2)) roadParts.push(sublocality2);
     if (neighborhood && !roadParts.includes(neighborhood)) roadParts.push(neighborhood);
+    // Put small locality explicitly into the road line (Champapet)
+    if (locality && !roadParts.includes(locality)) roadParts.push(locality);
 
+    // Optionally add adminArea2 at the end of road line for context (only if it's not the same as city)
     if (adminArea2 && !roadParts.includes(adminArea2) && adminArea2 !== city) {
       roadParts.push(adminArea2);
     }
 
     let roadLine = roadParts.join(", ");
     if (!roadLine) {
-      if (premise) roadLine = premise;
-      else roadLine = locality || adminArea2 || "";
+      // fallback to premise or locality
+      roadLine = premise || locality || adminArea2 || "";
     }
 
+    // === Build second line: City, State - PIN
     const line2Parts: string[] = [];
     if (city) line2Parts.push(city);
     if (state) line2Parts.push(state);
@@ -160,7 +159,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
   }
 
   //
-  // ---------- detectAddress (Meesho-style, client-only) ----------
+  // ---------- detectAddress (client-only, uses geocode web API) ----------
   //
   const detectAddress = () => {
     if (!navigator.geolocation) {
@@ -174,16 +173,16 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          // ======= PUT YOUR KEY HERE (client-side) =======
-          // Replace with your real key or keep current manual method
-          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace
-          // ==============================================
+          // ======= Put your client API key here (or keep manual method) =======
+          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace with real key
+          // ===================================================================
 
           if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
             console.warn("Google API key missing in detectAddress. Replace apiKey with your key.");
             return;
           }
 
+          // Request rooftop-level geocode for best accuracy
           const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&key=${apiKey}`;
 
           const res = await fetch(url);
@@ -198,6 +197,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             return;
           }
 
+          // choose most specific result, but prefer one that has postal_code
           let chosenResult = data.results[0];
           if (!chosenResult.address_components.some((c: any) => c.types.includes("postal_code"))) {
             const found = data.results.find((r: any) =>
@@ -210,25 +210,21 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
           const formatted = buildMeeshoAddress(components);
 
-          const displayAddress = formatted.line1;
-          const displayCity = formatted.city;
-          const displayState = formatted.state;
-          const displayPin = formatted.pincode;
-
-          // If houseNo has slashes like "premise/subpremise/number" we want to put number part into house field
-          // Keep as-is for now (Meesho often shows houseNo as 17-1-382/P/83)
+          // Fill the form: houseNo, address (roadLine), city (forced to district), state, pincode
           setFormData((prev) => ({
             ...prev,
             houseNo: formatted.houseNo || prev.houseNo,
-            address: displayAddress || prev.address,
-            city: displayCity || prev.city,
-            state: displayState || prev.state,
-            pincode: displayPin || prev.pincode,
+            address: formatted.line1 || prev.address,
+            city: formatted.city || prev.city,
+            state: formatted.state || prev.state,
+            pincode: formatted.pincode || prev.pincode,
           }));
 
           console.log("Auto-filled Meesho-style address:");
           console.log(formatted.line1);
           console.log(formatted.line2);
+          // also log chosenResult if you want to debug
+          // console.log(chosenResult);
         } catch (err) {
           console.error("Error fetching address:", err);
         }
@@ -515,22 +511,6 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 }
 
 
-    
 
-       
-
-     
-     
  
-
-
       
-         
-        
-           
-        
-         
-             
-             
-            
-          
