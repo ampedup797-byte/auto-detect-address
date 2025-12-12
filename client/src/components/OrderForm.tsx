@@ -64,7 +64,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     name: "",
     phone: "",
     email: "",
-    houseNo: "",    
+    houseNo: "",
     address: "",
     city: "",
     state: "",
@@ -75,81 +75,175 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
   useEffect(() => {
     detectAddress();
-}, []);
+  }, []);
 
-  const detectAddress = () => {
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return;
+  //
+  // ---------- Helper functions for smart address formatting ----------
+  //
+
+  function getComponent(components: any[], type: string) {
+    const comp = components.find((c) => c.types.includes(type));
+    return comp ? comp.long_name : "";
   }
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+  function formatAddress(components: any[], placeResult?: any) {
+    const house =
+      getComponent(components, "subpremise") ||
+      getComponent(components, "premise") ||
+      getComponent(components, "street_number");
 
-        const res = await fetch(url);
-        const data = await res.json();
+    const street = getComponent(components, "route");
 
-        if (!data.results || !data.results[0]) {
-          console.warn("No geocode results");
-          return;
-        }
+    const area =
+      getComponent(components, "sublocality_level_1") ||
+      getComponent(components, "sublocality") ||
+      getComponent(components, "neighborhood");
 
-        const components = data.results[0].address_components;
+    const city =
+      getComponent(components, "locality") ||
+      getComponent(components, "administrative_area_level_2");
 
-        let houseNo = "";
-        let road = "";
-        let city = "";
-        let state = "";
-        let postalCode = "";
+    const state =
+      getComponent(components, "administrative_area_level_1");
 
-        components.forEach((c) => {
-          if (c.types.includes("street_number")) houseNo = c.long_name;
-          if (c.types.includes("premise") && !houseNo) houseNo = c.long_name;
+    const pincode = getComponent(components, "postal_code");
 
-          if (c.types.includes("route")) road = c.long_name;
-          if (c.types.includes("sublocality_level_1"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("sublocality_level_2"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("neighborhood"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
+    const placeName = placeResult?.name || "";
 
-          if (c.types.includes("locality")) city = c.long_name;
-          if (c.types.includes("administrative_area_level_1")) state = c.long_name;
-          if (c.types.includes("postal_code")) postalCode = c.long_name;
-        });
+    const line1Parts: string[] = [];
+    if (placeName) line1Parts.push(placeName);
+    if (house) line1Parts.push(house);
+    if (street) line1Parts.push(street);
 
-        // update React state directly ✅
-        setFormData((prev) => ({
-          ...prev,
-          houseNo: houseNo || prev.houseNo,
-          address: road || prev.address,
-          city: city || prev.city,
-          state: state || prev.state,
-          pincode: postalCode || prev.pincode,
-        }));
+    const line2Parts: string[] = [];
+    if (area) line2Parts.push(area);
+    if (city) line2Parts.push(city);
+    if (state) line2Parts.push(state);
+    if (pincode) line2Parts.push(pincode);
 
-        console.log("DEBUG filled via React:", {
-          houseNo,
-          road,
-          city,
-          state,
-          postalCode,
-        });
-      } catch (err) {
-        console.error("Error fetching address:", err);
-      }
-    },
-    () => {
-      console.warn("Location permission denied");
+    const fullAddress =
+      (line1Parts.join(", ") || "") +
+      (line2Parts.length ? (line1Parts.length ? ", " : "") + line2Parts.join(", ") : "");
+
+    return {
+      fullAddress,
+      house,
+      street,
+      area,
+      city,
+      state,
+      pincode,
+      landmark: placeName,
+    };
+  }
+
+  /**
+   * getSmartAddress
+   * - lat,lng → reverse geocode (ROOFTOP, street_address)
+   * - get place_id → Place Details for richer place name
+   * - format using formatAddress()
+   *
+   * NOTE: It's safer to call your own backend endpoint that stores API key.
+   * For quick testing we read a frontend env var (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).
+   */
+  async function getSmartAddress(lat: number, lng: number) {
+    // QUICK TEST SETUP:
+    // If you already have a backend endpoint that holds the key, replace this fetch
+    // with something like: fetch(`/api/get-address?lat=${lat}&lng=${lng}`)
+    // and return the formatted object directly from server.
+    //
+    // FRONTEND KEY (only for quick dev testing):
+    const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
+
+    if (!API_KEY) {
+      console.warn("No Google Maps API key found in NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Consider moving API calls to your backend.");
     }
-  );
-};
+
+    try {
+      // 1) Reverse geocode: ask for rooftop/street to increase accuracy
+      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&result_type=street_address&key=${API_KEY}`;
+      const geoResp = await fetch(geoUrl);
+      const geoData = await geoResp.json();
+
+      if (!geoData || !geoData.results || geoData.results.length === 0) {
+        // fallback: try a broader geocode without filters
+        const fallbackUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API_KEY}`;
+        const fallbackResp = await fetch(fallbackUrl);
+        const fallbackData = await fallbackResp.json();
+        if (!fallbackData || !fallbackData.results || fallbackData.results.length === 0) {
+          throw new Error("No geocode results");
+        }
+        geoData.results = fallbackData.results;
+      }
+
+      const bestResult = geoData.results[0];
+      const components = bestResult.address_components || [];
+      const placeId = bestResult.place_id;
+
+      let placeResult: any = null;
+      if (placeId) {
+        // 2) Place Details: gives place name/landmark + structured components (enable Places API)
+        const placeUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,address_component&key=${API_KEY}`;
+        const placeResp = await fetch(placeUrl);
+        const placeData = await placeResp.json();
+        placeResult = placeData.result || null;
+      }
+
+      // 3) Format to Meesho-style address
+      return formatAddress(components, placeResult);
+    } catch (err) {
+      console.error("getSmartAddress error:", err);
+      throw err;
+    }
+  }
+
+  //
+  // ---------- detectAddress: uses getSmartAddress and updates form state ----------
+  //
+  const detectAddress = () => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation not supported");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          // If you have server-side endpoint, replace with:
+          // const resp = await fetch(`/api/get-address?lat=${lat}&lng=${lng}`);
+          // const formatted = await resp.json();
+          //
+          // For quick dev, using getSmartAddress (frontend key). Move to backend for prod.
+          const formatted = await getSmartAddress(lat, lng);
+
+          // update React state directly ✅
+          setFormData((prev) => ({
+            ...prev,
+            houseNo: formatted.house || prev.houseNo,
+            address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
+            city: formatted.city || prev.city,
+            state: formatted.state || prev.state,
+            pincode: formatted.pincode || prev.pincode,
+          }));
+
+          console.log("DEBUG filled via React (smart):", formatted);
+        } catch (err) {
+          console.error("Error fetching smart address:", err);
+        }
+      },
+      () => {
+        console.warn("Location permission denied");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -174,7 +268,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     }
     if (!formData.houseNo.trim()) {
       newErrors.houseNo = "House / building name is required";
-    }   
+    }
     if (!formData.address.trim()) newErrors.address = "Address is required";
     if (!formData.city.trim()) newErrors.city = "City is required";
     if (!formData.state) newErrors.state = "State is required";
@@ -202,7 +296,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           🗒️Complete Your Order
         </h2>
         <p className="text-sm text-muted-foreground" data-testid="text-form-description">
-          Enter your delivery details for cash on 
+          Enter your delivery details for cash on
           Delivery.
         </p>
       </div>
@@ -273,7 +367,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           <Label htmlFor="houseNo" className="text-sm font-medium">
             House / Building Name <span className="text-destructive">*</span>
           </Label>
-          
+
           <Input
             id="houseNo"
             data-testid="input-houseNo"
@@ -282,15 +376,15 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             onChange={(e) => handleChange("houseNo", e.target.value)}
             className={errors.houseNo ? "border-destructive" : ""}
             disabled={isLoading}
-            />
-          
+          />
+
           {errors.houseNo && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
-        {errors.houseNo}
-      </p>
-    )}
+            <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
+              {errors.houseNo}
+            </p>
+          )}
         </div>
-        
+
         <div>
           <Label htmlFor="address" className="text-sm font-medium">
             Street Address <span className="text-destructive">*</span>
@@ -332,7 +426,6 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             )}
           </div>
 
-
           <div>
             <Label htmlFor="state" className="text-sm font-medium">
               State <span className="text-destructive">*</span>
@@ -344,34 +437,34 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
               style={{ display: "none" }}
               value={formData.state}
               onChange={(e) => handleChange("state", e.target.value)}
-              />
-            
+            />
+
             <Select
               value={formData.state}
               onValueChange={(value) => handleChange("state", value)}
               disabled={isLoading}
-              >
+            >
               <SelectTrigger
                 data-testid="select-state"
                 className={errors.state ? "border-destructive" : ""}
-                >
+              >
                 <SelectValue placeholder="Select State" />
               </SelectTrigger>
-              
+
               <SelectContent>
                 {INDIAN_STATES.map((state) => (
-                <SelectItem key={state} value={state}>
-                  {state}
-                </SelectItem>
-              ))}
+                  <SelectItem key={state} value={state}>
+                    {state}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            
+
             {errors.state && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-state">
-        {errors.state}
-      </p>
-    )}
+              <p className="text-sm text-destructive mt-1" data-testid="error-state">
+                {errors.state}
+              </p>
+            )}
           </div>
 
           <div>
