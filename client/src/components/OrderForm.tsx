@@ -64,7 +64,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     name: "",
     phone: "",
     email: "",
-    houseNo: "",    
+    houseNo: "",
     address: "",
     city: "",
     state: "",
@@ -75,81 +75,170 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
   useEffect(() => {
     detectAddress();
-}, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const detectAddress = () => {
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return;
+  //
+  // ---------- Formatter that forces small-locality into address and big-city into city ----------
+  //
+
+  function component(components: any[], type: string) {
+    const c = components.find((x) => x.types && x.types.includes(type));
+    return c ? c.long_name : "";
   }
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+  /**
+   * Force district/adminArea2 (e.g., Hyderabad) into the city field,
+   * and push small locality (Champapet / Vaishali Nagar) into the road/area line.
+   */
+  function buildMeeshoAddress(components: any[]) {
+    const get = (t: string) => component(components, t);
 
-        const res = await fetch(url);
-        const data = await res.json();
+    const subpremise = get("subpremise"); // floor/flat
+    const premise = get("premise"); // building name
+    const streetNumber = get("street_number");
+    const route = get("route"); // street
+    const sublocality1 = get("sublocality_level_1") || get("sublocality");
+    const sublocality2 = get("sublocality_level_2");
+    const neighborhood = get("neighborhood");
+    const postal_town = get("postal_town");
+    const locality = get("locality"); // small area like Champapet
+    const adminArea2 = get("administrative_area_level_2"); // district (Hyderabad)
+    const state = get("administrative_area_level_1");
+    const postal_code = get("postal_code");
 
-        if (!data.results || !data.results[0]) {
-          console.warn("No geocode results");
-          return;
-        }
+    // === Decide city: prefer adminArea2 (district) or postal_town.
+    // This forces 'Hyderabad' as city even if locality is Champapet.
+    const city = adminArea2 || postal_town || locality || "";
 
-        const components = data.results[0].address_components;
+    // === Build houseNo: building/flat/number joined with '/'
+    const houseParts: string[] = [];
+    if (premise) houseParts.push(premise); // building name
+    if (subpremise) houseParts.push(subpremise); // flat/floor
+    // always include streetNumber if present (helps match Meesho)
+    if (streetNumber) houseParts.push(streetNumber);
+    // If premise contains number already, duplication check isn't strict — this is fine.
+    const houseNo = houseParts.filter(Boolean).join("/"); // e.g., "17-1-382/P/83"
 
-        let houseNo = "";
-        let road = "";
-        let city = "";
-        let state = "";
-        let postalCode = "";
+    // === Build Road/Area line (include locality here)
+    // Road line priority: route, sublocality1, sublocality2, neighborhood, locality, adminArea2 (optional)
+    const roadParts: string[] = [];
+    if (route) roadParts.push(route);
+    if (sublocality1) roadParts.push(sublocality1);
+    if (sublocality2 && !roadParts.includes(sublocality2)) roadParts.push(sublocality2);
+    if (neighborhood && !roadParts.includes(neighborhood)) roadParts.push(neighborhood);
+    // Put small locality explicitly into the road line (Champapet)
+    if (locality && !roadParts.includes(locality)) roadParts.push(locality);
 
-        components.forEach((c) => {
-          if (c.types.includes("street_number")) houseNo = c.long_name;
-          if (c.types.includes("premise") && !houseNo) houseNo = c.long_name;
-
-          if (c.types.includes("route")) road = c.long_name;
-          if (c.types.includes("sublocality_level_1"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("sublocality_level_2"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("neighborhood"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-
-          if (c.types.includes("locality")) city = c.long_name;
-          if (c.types.includes("administrative_area_level_1")) state = c.long_name;
-          if (c.types.includes("postal_code")) postalCode = c.long_name;
-        });
-
-        // update React state directly ✅
-        setFormData((prev) => ({
-          ...prev,
-          houseNo: houseNo || prev.houseNo,
-          address: road || prev.address,
-          city: city || prev.city,
-          state: state || prev.state,
-          pincode: postalCode || prev.pincode,
-        }));
-
-        console.log("DEBUG filled via React:", {
-          houseNo,
-          road,
-          city,
-          state,
-          postalCode,
-        });
-      } catch (err) {
-        console.error("Error fetching address:", err);
-      }
-    },
-    () => {
-      console.warn("Location permission denied");
+    // Optionally add adminArea2 at the end of road line for context (only if it's not the same as city)
+    if (adminArea2 && !roadParts.includes(adminArea2) && adminArea2 !== city) {
+      roadParts.push(adminArea2);
     }
-  );
-};
+
+    let roadLine = roadParts.join(", ");
+    if (!roadLine) {
+      // fallback to premise or locality
+      roadLine = premise || locality || adminArea2 || "";
+    }
+
+    // === Build second line: City, State - PIN
+    const line2Parts: string[] = [];
+    if (city) line2Parts.push(city);
+    if (state) line2Parts.push(state);
+    const line2 = line2Parts.join(", ") + (postal_code ? ` - ${postal_code}` : "");
+
+    return {
+      line1: roadLine.trim(),
+      line2: line2.trim(),
+      houseNo: houseNo || premise || subpremise || streetNumber || "",
+      street: route || roadLine || "",
+      city: city || "",
+      state: state || "",
+      pincode: postal_code || "",
+    };
+  }
+
+  //
+  // ---------- detectAddress (client-only, uses geocode web API) ----------
+  //
+  const detectAddress = () => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation not supported");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          // ======= Put your client API key here (or keep manual method) =======
+          const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA"; // <-- replace with real key
+          // ===================================================================
+
+          if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+            console.warn("Google API key missing in detectAddress. Replace apiKey with your key.");
+            return;
+          }
+
+          // Request rooftop-level geocode for best accuracy
+          const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&key=${apiKey}`;
+
+          const res = await fetch(url);
+          if (!res.ok) {
+            console.warn("Geocode HTTP error", res.status, await res.text());
+            return;
+          }
+          const data = await res.json();
+
+          if (!data.results || data.results.length === 0) {
+            console.warn("No geocode results");
+            return;
+          }
+
+          // choose most specific result, but prefer one that has postal_code
+          let chosenResult = data.results[0];
+          if (!chosenResult.address_components.some((c: any) => c.types.includes("postal_code"))) {
+            const found = data.results.find((r: any) =>
+              r.address_components && r.address_components.some((c: any) => c.types.includes("postal_code"))
+            );
+            if (found) chosenResult = found;
+          }
+
+          const components = chosenResult.address_components || [];
+
+          const formatted = buildMeeshoAddress(components);
+
+          // Fill the form: houseNo, address (roadLine), city (forced to district), state, pincode
+          setFormData((prev) => ({
+            ...prev,
+            houseNo: formatted.houseNo || prev.houseNo,
+            address: formatted.line1 || prev.address,
+            city: formatted.city || prev.city,
+            state: formatted.state || prev.state,
+            pincode: formatted.pincode || prev.pincode,
+          }));
+
+          console.log("Auto-filled Meesho-style address:");
+          console.log(formatted.line1);
+          console.log(formatted.line2);
+          // also log chosenResult if you want to debug
+          // console.log(chosenResult);
+        } catch (err) {
+          console.error("Error fetching address:", err);
+        }
+      },
+      (err) => {
+        console.warn("Location permission denied or error:", err);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
 
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -174,7 +263,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
     }
     if (!formData.houseNo.trim()) {
       newErrors.houseNo = "House / building name is required";
-    }   
+    }
     if (!formData.address.trim()) newErrors.address = "Address is required";
     if (!formData.city.trim()) newErrors.city = "City is required";
     if (!formData.state) newErrors.state = "State is required";
@@ -202,7 +291,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           🗒️Complete Your Order
         </h2>
         <p className="text-sm text-muted-foreground" data-testid="text-form-description">
-          Enter your delivery details for cash on 
+          Enter your delivery details for cash on
           Delivery.
         </p>
       </div>
@@ -273,7 +362,7 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           <Label htmlFor="houseNo" className="text-sm font-medium">
             House / Building Name <span className="text-destructive">*</span>
           </Label>
-          
+
           <Input
             id="houseNo"
             data-testid="input-houseNo"
@@ -282,15 +371,15 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             onChange={(e) => handleChange("houseNo", e.target.value)}
             className={errors.houseNo ? "border-destructive" : ""}
             disabled={isLoading}
-            />
-          
+          />
+
           {errors.houseNo && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
-        {errors.houseNo}
-      </p>
-    )}
+            <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
+              {errors.houseNo}
+            </p>
+          )}
         </div>
-        
+
         <div>
           <Label htmlFor="address" className="text-sm font-medium">
             Street Address <span className="text-destructive">*</span>
@@ -332,7 +421,6 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             )}
           </div>
 
-
           <div>
             <Label htmlFor="state" className="text-sm font-medium">
               State <span className="text-destructive">*</span>
@@ -344,34 +432,34 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
               style={{ display: "none" }}
               value={formData.state}
               onChange={(e) => handleChange("state", e.target.value)}
-              />
-            
+            />
+
             <Select
               value={formData.state}
               onValueChange={(value) => handleChange("state", value)}
               disabled={isLoading}
-              >
+            >
               <SelectTrigger
                 data-testid="select-state"
                 className={errors.state ? "border-destructive" : ""}
-                >
+              >
                 <SelectValue placeholder="Select State" />
               </SelectTrigger>
-              
+
               <SelectContent>
                 {INDIAN_STATES.map((state) => (
-                <SelectItem key={state} value={state}>
-                  {state}
-                </SelectItem>
-              ))}
+                  <SelectItem key={state} value={state}>
+                    {state}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            
+
             {errors.state && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-state">
-        {errors.state}
-      </p>
-    )}
+              <p className="text-sm text-destructive mt-1" data-testid="error-state">
+                {errors.state}
+              </p>
+            )}
           </div>
 
           <div>
