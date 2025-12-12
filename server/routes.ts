@@ -1,423 +1,146 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { ShoppingBag, Loader2 } from "lucide-react";
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import fetch from "node-fetch";
 
-const INDIAN_STATES = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-];
+const variantsMap = require("../variants_map.json");
+const SHOPIFY_STORE_URL = "https://t1akyv-ss.myshopify.com";
 
-interface OrderFormProps {
-  onSubmit: (formData: FormData) => void;
-  isLoading?: boolean;
-}
+export async function registerRoutes(app: Express): Promise<Server> {
+  app.post("/api/create-cod-order", async (req, res) => {
+    try {
+        // ---------------- DEBUG LOGS START ----------------
+        console.log("=== DEBUG /api/create-cod-order START ===");
+        console.log("DEBUG req.body:", req.body);
+        console.log("DEBUG keys req.body:", Object.keys(req.body || {}));
+        // ---------------- DEBUG LOGS END ------------------
 
-export interface FormData {
-  name: string;
-  phone: string;
-  email: string;
-  houseNo: string;
-  address: string;
-  city: string;
-  state: string;
-  pincode: string;
-}
+        const { name,
+                phone, 
+                email, 
+                houseNo,
+                addressLine1, 
+                address,
+                city, 
+                state, 
+                pincode, 
+                product_id,  
+                size 
+                } = req.body || {};
 
-export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProps) {
-  const [formData, setFormData] = useState<FormData>({
-    name: "",
-    phone: "",
-    email: "",
-    houseNo: "",    
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-  });
 
-  const [errors, setErrors] = useState<Partial<FormData>>({});
+      // Extra details shown in Shopify under "Additional details"
+const noteAttributes = [
+  { name: "NAME", value: name || "" },
+  { name: "Phone number", value: phone || "" },
+  { name: "Road name/ Area /colony", value: address || "" },
+  { name: "House no", value: houseNo || "" },
+  { name: "City", value: city || "" },
+  { name: "State", value: state || "" },
+  { name: "zip_code", value: pincode || "" },
+  { name: "Size", value: size || "" },
+  { name: "Email", value: email || "" },
+];      
+      //const { product_id, size } = req.body;
+      // convert to string because JSON keys are strings
+      const pid = String(product_id);
+      const sizeKey = String(size);
 
-  useEffect(() => {
-    detectAddress();
-}, []);
-
-  const detectAddress = () => {
-  if (!navigator.geolocation) {
-    console.warn("Geolocation not supported");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const apiKey = "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (!data.results || !data.results[0]) {
-          console.warn("No geocode results");
-          return;
-        }
-
-        const components = data.results[0].address_components;
-
-        let houseNo = "";
-        let road = "";
-        let city = "";
-        let state = "";
-        let postalCode = "";
-
-        components.forEach((c) => {
-          if (c.types.includes("street_number")) houseNo = c.long_name;
-          if (c.types.includes("premise") && !houseNo) houseNo = c.long_name;
-
-          if (c.types.includes("route")) road = c.long_name;
-          if (c.types.includes("sublocality_level_1"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("sublocality_level_2"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-          if (c.types.includes("neighborhood"))
-            road = road ? `${road}, ${c.long_name}` : c.long_name;
-
-          if (c.types.includes("locality")) city = c.long_name;
-          if (c.types.includes("administrative_area_level_1")) state = c.long_name;
-          if (c.types.includes("postal_code")) postalCode = c.long_name;
+      // ---------- DEBUG pid & size ----------
+      console.log("DEBUG pid:", pid);
+      console.log("DEBUG sizeKey:", sizeKey);
+      console.log("DEBUG variantsMap has pid?:", !!variantsMap[pid]);
+      console.log("DEBUG variantsMap entry:", variantsMap[pid]);      
+      // find variant id from variants_map.json
+      
+      const variantId =
+        variantsMap[pid]?.variants[sizeKey] ||
+        variantsMap[pid]?.variants[sizeKey.toUpperCase()] ||
+        variantsMap[pid]?.variants[sizeKey.toLowerCase()];
+      
+      if (!variantId) {
+        return res.status(400).json({
+          success: false,
+          message: `Variant not found for product_id ${pid} and size ${sizeKey}`
         });
-
-        // update React state directly ✅
-        setFormData((prev) => ({
-          ...prev,
-          houseNo: houseNo || prev.houseNo,
-          address: road || prev.address,
-          city: city || prev.city,
-          state: state || prev.state,
-          pincode: postalCode || prev.pincode,
-        }));
-
-        console.log("DEBUG filled via React:", {
-          houseNo,
-          road,
-          city,
-          state,
-          postalCode,
-        });
-      } catch (err) {
-        console.error("Error fetching address:", err);
       }
-    },
-    () => {
-      console.warn("Location permission denied");
-    }
-  );
-};
+      if (!process.env.SHOPIFY_ACCESS_TOKEN) {
+        return res.status(500).json({ 
+          success: false, 
+          message: "Shopify access token not configured" 
+        });
+      }
 
-  const handleChange = (field: keyof FormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
-    }
-  };
+      const orderData = {
+        order: {
+          line_items: [
+            {
+              variant_id: Number(variantId),
+              quantity: 1
+            }
+          ],
+            customer: {
+            first_name: name,
+            email: email,
+            phone: phone,
+          },
+          billing_address: {
+            address1: addressLine1,
+            city: city,
+            province: state,
+            zip: pincode,
+            country: "India",
+          },
+          shipping_address: {
+            address1: addressLine1,
+            city: city,
+            province: state,
+            zip: pincode,
+            country: "India",
+          },
+          financial_status: "pending",
+          tags: ["COD"],
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<FormData> = {};
+          note_attributes: noteAttributes,
+        },
+      };
 
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.phone.trim()) {
-      newErrors.phone = "Phone is required";
-    } else if (!/^\+?[\d\s-]{10,}$/.test(formData.phone)) {
-      newErrors.phone = "Invalid phone number";
-    }
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Invalid email address";
-    }
-    if (!formData.houseNo.trim()) {
-      newErrors.houseNo = "House / building name is required";
-    }   
-    if (!formData.address.trim()) newErrors.address = "Address is required";
-    if (!formData.city.trim()) newErrors.city = "City is required";
-    if (!formData.state) newErrors.state = "State is required";
-    if (!formData.pincode.trim()) {
-      newErrors.pincode = "Pincode is required";
-    } else if (!/^\d{6}$/.test(formData.pincode)) {
-      newErrors.pincode = "Pincode must be 6 digits";
-    }
+      const response = await fetch(`${SHOPIFY_STORE_URL}/admin/api/2024-10/orders.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": process.env.SHOPIFY_ACCESS_TOKEN,
+        },
+        body: JSON.stringify(orderData),
+      });
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+      const data = await response.json() as any;
+      console.log("Shopify Response:", data);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateForm()) {
-      onSubmit(formData);
-    }
-  };
+      if (response.ok && data.order) {
+        res.json({ 
+          success: true, 
+          message: "COD Order created successfully!", 
+          order_id: data.order.id,
+          order_number: data.order.order_number 
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: data.errors || "Failed to create order in Shopify" 
+        });
+      }
+      } catch (err) {
+  console.error("Error creating COD order:", err);
+  return res.status(500).json({
+    success: false,
+    message: err.message || "Server error",
+    stack: err.stack,
+    receivedPayload: req.body || {}
+  });
+} 
+});
 
-  return (
-    <Card className="p-8" data-testid="card-order-form">
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-foreground mb-2" data-testid="text-form-title">
-          🗒️Complete Your Order
-        </h2>
-        <p className="text-sm text-muted-foreground" data-testid="text-form-description">
-          Enter your delivery details for cash on 
-          Delivery.
-        </p>
-      </div>
+  const httpServer = createServer(app);
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <Label htmlFor="name" className="text-sm font-medium">
-            Full Name <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="name"
-            data-testid="input-name"
-            placeholder="Enter Your full name"
-            value={formData.name}
-            onChange={(e) => handleChange("name", e.target.value)}
-            className={errors.name ? "border-destructive" : ""}
-            disabled={isLoading}
-          />
-          {errors.name && (
-            <p className="text-sm text-destructive mt-1" data-testid="error-name">
-              {errors.name}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="phone" className="text-sm font-medium">
-            Phone Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="phone"
-            data-testid="input-phone"
-            placeholder="+91 9876543210"
-            value={formData.phone}
-            onChange={(e) => handleChange("phone", e.target.value)}
-            className={errors.phone ? "border-destructive" : ""}
-            disabled={isLoading}
-          />
-          {errors.phone && (
-            <p className="text-sm text-destructive mt-1" data-testid="error-phone">
-              {errors.phone}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="email" className="text-sm font-medium">
-            Email Address <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            data-testid="input-email"
-            placeholder="your@gmail.com"
-            value={formData.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-            className={errors.email ? "border-destructive" : ""}
-            disabled={isLoading}
-          />
-          {errors.email && (
-            <p className="text-sm text-destructive mt-1" data-testid="error-email">
-              {errors.email}
-            </p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="houseNo" className="text-sm font-medium">
-            House / Building Name <span className="text-destructive">*</span>
-          </Label>
-          
-          <Input
-            id="houseNo"
-            data-testid="input-houseNo"
-            placeholder="Flat / House No / Building Name"
-            value={formData.houseNo}
-            onChange={(e) => handleChange("houseNo", e.target.value)}
-            className={errors.houseNo ? "border-destructive" : ""}
-            disabled={isLoading}
-            />
-          
-          {errors.houseNo && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-houseNo">
-        {errors.houseNo}
-      </p>
-    )}
-        </div>
-        
-        <div>
-          <Label htmlFor="address" className="text-sm font-medium">
-            Street Address <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="address"
-            data-testid="input-address"
-            placeholder="House number, street name"
-            value={formData.address}
-            onChange={(e) => handleChange("address", e.target.value)}
-            className={errors.address ? "border-destructive" : ""}
-            disabled={isLoading}
-          />
-          {errors.address && (
-            <p className="text-sm text-destructive mt-1" data-testid="error-address">
-              {errors.address}
-            </p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <Label htmlFor="city" className="text-sm font-medium">
-              City <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="city"
-              data-testid="input-city"
-              placeholder="City"
-              value={formData.city}
-              onChange={(e) => handleChange("city", e.target.value)}
-              className={errors.city ? "border-destructive" : ""}
-              disabled={isLoading}
-            />
-            {errors.city && (
-              <p className="text-sm text-destructive mt-1" data-testid="error-city">
-                {errors.city}
-              </p>
-            )}
-          </div>
-
-
-          <div>
-            <Label htmlFor="state" className="text-sm font-medium">
-              State <span className="text-destructive">*</span>
-            </Label>
-            {/* Hidden input so auto-detect can fill it */}
-            <input
-              type="text"
-              id="state"
-              style={{ display: "none" }}
-              value={formData.state}
-              onChange={(e) => handleChange("state", e.target.value)}
-              />
-            
-            <Select
-              value={formData.state}
-              onValueChange={(value) => handleChange("state", value)}
-              disabled={isLoading}
-              >
-              <SelectTrigger
-                data-testid="select-state"
-                className={errors.state ? "border-destructive" : ""}
-                >
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              
-              <SelectContent>
-                {INDIAN_STATES.map((state) => (
-                <SelectItem key={state} value={state}>
-                  {state}
-                </SelectItem>
-              ))}
-              </SelectContent>
-            </Select>
-            
-            {errors.state && (
-      <p className="text-sm text-destructive mt-1" data-testid="error-state">
-        {errors.state}
-      </p>
-    )}
-          </div>
-
-          <div>
-            <Label htmlFor="pincode" className="text-sm font-medium">
-              Pincode <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="pincode"
-              data-testid="input-pincode"
-              placeholder="123456"
-              maxLength={6}
-              value={formData.pincode}
-              onChange={(e) => handleChange("pincode", e.target.value.replace(/\D/g, ""))}
-              className={errors.pincode ? "border-destructive" : ""}
-              disabled={isLoading}
-            />
-            {errors.pincode && (
-              <p className="text-sm text-destructive mt-1" data-testid="error-pincode">
-                {errors.pincode}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-4">
-          <Button
-            type="submit"
-            className="w-full md:w-auto"
-            size="lg"
-            disabled={isLoading}
-            data-testid="button-submit"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Creating Order...
-              </>
-            ) : (
-              <>
-                <ShoppingBag className="mr-2 h-5 w-5" />
-                Complete Order
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
-    </Card>
-  );
+  return httpServer;
 }
