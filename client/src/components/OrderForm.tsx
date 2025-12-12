@@ -73,14 +73,37 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
 
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
+  // load Google Maps JS library once
   useEffect(() => {
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+    if (!key) {
+      console.warn("Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in .env.local for Maps JS API");
+      // still call detectAddress which will warn about missing google object
+    }
+    // if script already present, skip adding
+    if (typeof window !== "undefined" && !(window as any).google) {
+      const id = "google-maps-js";
+      if (!document.getElementById(id)) {
+        const s = document.createElement("script");
+        s.id = id;
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+        s.async = true;
+        s.defer = true;
+        s.onload = () => {
+          console.log("Google Maps JS loaded");
+        };
+        s.onerror = () => {
+          console.error("Failed to load Google Maps JS");
+        };
+        document.head.appendChild(s);
+      }
+    }
+    // start detection once (will wait for script if needed)
     detectAddress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  //
-  // ---------- Helper functions for smart address formatting ----------
-  //
-
+  // ---------- helper functions ----------
   function getComponent(components: any[], type: string) {
     const comp = components.find((c) => c.types.includes(type));
     return comp ? comp.long_name : "";
@@ -138,68 +161,9 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
   }
 
   /**
-   * getSmartAddress
-   * - lat,lng → reverse geocode (ROOFTOP, street_address)
-   * - get place_id → Place Details for richer place name
-   * - format using formatAddress()
-   *
-   * NOTE: It's safer to call your own backend endpoint that stores API key.
-   * For quick testing we read a frontend env var (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY).
+   * detectAddress - uses Maps JS API (Geocoder + PlacesService)
+   * No CORS errors because JS SDK is built for browser usage.
    */
-  async function getSmartAddress(lat: number, lng: number) {
-    // QUICK TEST SETUP:
-    // If you already have a backend endpoint that holds the key, replace this fetch
-    // with something like: fetch(`/api/get-address?lat=${lat}&lng=${lng}`)
-    // and return the formatted object directly from server.
-    //
-    // FRONTEND KEY (only for quick dev testing):
-    const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyCM_l3ma9CWW-3lFYZXbPr6ZFDGcjq3xvA";
-
-    if (!API_KEY) {
-      console.warn("No Google Maps API key found in NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Consider moving API calls to your backend.");
-    }
-
-    try {
-      // 1) Reverse geocode: ask for rooftop/street to increase accuracy
-      const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&result_type=street_address&key=${API_KEY}`;
-      const geoResp = await fetch(geoUrl);
-      const geoData = await geoResp.json();
-
-      if (!geoData || !geoData.results || geoData.results.length === 0) {
-        // fallback: try a broader geocode without filters
-        const fallbackUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API_KEY}`;
-        const fallbackResp = await fetch(fallbackUrl);
-        const fallbackData = await fallbackResp.json();
-        if (!fallbackData || !fallbackData.results || fallbackData.results.length === 0) {
-          throw new Error("No geocode results");
-        }
-        geoData.results = fallbackData.results;
-      }
-
-      const bestResult = geoData.results[0];
-      const components = bestResult.address_components || [];
-      const placeId = bestResult.place_id;
-
-      let placeResult: any = null;
-      if (placeId) {
-        // 2) Place Details: gives place name/landmark + structured components (enable Places API)
-        const placeUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,address_component&key=${API_KEY}`;
-        const placeResp = await fetch(placeUrl);
-        const placeData = await placeResp.json();
-        placeResult = placeData.result || null;
-      }
-
-      // 3) Format to Meesho-style address
-      return formatAddress(components, placeResult);
-    } catch (err) {
-      console.error("getSmartAddress error:", err);
-      throw err;
-    }
-  }
-
-  //
-  // ---------- detectAddress: uses getSmartAddress and updates form state ----------
-  //
   const detectAddress = () => {
     if (!navigator.geolocation) {
       console.warn("Geolocation not supported");
@@ -212,14 +176,93 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          // If you have server-side endpoint, replace with:
-          // const resp = await fetch(`/api/get-address?lat=${lat}&lng=${lng}`);
-          // const formatted = await resp.json();
-          //
-          // For quick dev, using getSmartAddress (frontend key). Move to backend for prod.
-          const formatted = await getSmartAddress(lat, lng);
+          // Wait up to ~3 seconds for window.google to be ready (if script is still loading)
+          const waitForGoogle = () =>
+            new Promise<void>((resolve) => {
+              const start = Date.now();
+              const interval = setInterval(() => {
+                if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Geocoder) {
+                  clearInterval(interval);
+                  resolve();
+                } else if (Date.now() - start > 3000) {
+                  clearInterval(interval);
+                  resolve(); // resolve anyway; fallback will try to use JS fetch approach (but likely fail due to CORS)
+                }
+              }, 150);
+            });
 
-          // update React state directly ✅
+          await waitForGoogle();
+
+          // If google is available, use Geocoder + PlacesService (preferred)
+          if ((window as any).google && (window as any).google.maps && (window as any).google.maps.Geocoder) {
+            const geocoder = new (window as any).google.maps.Geocoder();
+            geocoder.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+              if (status === "OK" && results && results.length) {
+                const best = results[0];
+                const components = best.address_components || [];
+                const placeId = best.place_id;
+
+                // If we have a placeId, fetch place details for place name/landmark
+                if (placeId && (window as any).google && (window as any).google.maps && (window as any).google.maps.places) {
+                  // PlacesService needs a map or element — create offscreen div
+                  const offDiv = document.createElement("div");
+                  const map = new (window as any).google.maps.Map(offDiv);
+                  const service = new (window as any).google.maps.places.PlacesService(map);
+                  service.getDetails(
+                    { placeId, fields: ["name", "address_components", "formatted_address"] },
+                    (placeResult: any, placeStatus: string) => {
+                      const formatted = formatAddress(components, placeResult);
+                      setFormData((prev) => ({
+                        ...prev,
+                        houseNo: formatted.house || prev.houseNo,
+                        address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
+                        city: formatted.city || prev.city,
+                        state: formatted.state || prev.state,
+                        pincode: formatted.pincode || prev.pincode,
+                      }));
+                      console.log("Auto-filled via Google Maps JS (places):", formatted);
+                    }
+                  );
+                } else {
+                  // No placeId or Places not available — fallback to using geocode components only
+                  const formatted = formatAddress(components, null);
+                  setFormData((prev) => ({
+                    ...prev,
+                    houseNo: formatted.house || prev.houseNo,
+                    address: formatted.street || formatted.area || formatted.fullAddress || prev.address,
+                    city: formatted.city || prev.city,
+                    state: formatted.state || prev.state,
+                    pincode: formatted.pincode || prev.pincode,
+                  }));
+                  console.log("Auto-filled via Google Maps JS (geocode only):", formatted);
+                }
+                return;
+              }
+
+              console.warn("Geocoder failed or returned no results:", status, results);
+            });
+            return;
+          }
+
+          // If google SDK not available (script failed to load), fallback to your original fetch geocode.
+          // NOTE: calling maps.googleapis.com directly from browser may hit CORS -> might fail.
+          console.warn("Google Maps JS not available — falling back to direct web service (may be blocked by CORS).");
+
+          const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+          if (!apiKey) {
+            console.warn("No API key found for fallback direct fetch.");
+            return;
+          }
+
+          const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&location_type=ROOFTOP&result_type=street_address&key=${apiKey}`;
+          const resp = await fetch(geoUrl);
+          const data = await resp.json();
+          if (!data.results || !data.results[0]) {
+            console.warn("No geocode results from fallback fetch");
+            return;
+          }
+          const components = data.results[0].address_components || [];
+          const formatted = formatAddress(components, null);
           setFormData((prev) => ({
             ...prev,
             houseNo: formatted.house || prev.houseNo,
@@ -228,14 +271,13 @@ export default function OrderForm({ onSubmit, isLoading = false }: OrderFormProp
             state: formatted.state || prev.state,
             pincode: formatted.pincode || prev.pincode,
           }));
-
-          console.log("DEBUG filled via React (smart):", formatted);
+          console.log("Auto-filled via fallback fetch:", formatted);
         } catch (err) {
-          console.error("Error fetching smart address:", err);
+          console.error("Error detecting address:", err);
         }
       },
-      () => {
-        console.warn("Location permission denied");
+      (err) => {
+        console.warn("Location permission denied or error:", err);
       },
       {
         enableHighAccuracy: true,
